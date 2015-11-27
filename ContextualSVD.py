@@ -89,9 +89,29 @@ class ContextualSVD():
         return prediction
 
 def one_hot_encoder(categorical_matrix):
-    pass
-    max_values = np.max(categorical_matrix, axis=1)
+    '''
+    Returns the one-hot-encoded feature matrix of a
+    categorical matrix. Assumes a matrix with categorical variables,
+    indicated by a number from 1 to N on
+    every column, where N is the number of possible categories.
+    Resulting matrix  will have the same amount of lines and
+    the sum of all N's as the number of columns.
+    '''
+    max_values = np.max(categorical_matrix, axis=0)
+    n_features = sum(max_values)
+    n_line, n_col = np.shape(categorical_matrix)
+
+    begin_index = np.cumsum(max_values)
+    begin_index[-1] = 0
+    begin_index = np.roll(begin_index, 1)
+
+    result = np.zeros((n_line, n_features))
+    for i in range(n_line):
+        result[i, categorical_matrix[i, :] + begin_index - 1] = 1
+
+    return result
+
 
 if __name__ == "__main__":
-    context_columns = [i for i in range(6, 17)]
-    dataset = np.loadtxt("", delimiter=",", dtype=int)
+    a = [[1, 3, 4],[2, 4, 4]]
+    print(one_hot_encoder(np.array(a)))
