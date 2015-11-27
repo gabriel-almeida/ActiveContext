@@ -1,16 +1,17 @@
 __author__ = 'gabriel'
 import numpy as np
 import random
+import matplotlib.pyplot as plt
 
 class ContextualSVD():
-    def __init__(self, max_steps = 200, n_latent_features = 40, learning_coeficient = 0.001, regularization_coeficient = 0.001, k = 25):
+    def __init__(self, max_steps = 200, n_latent_features = 40, learning_coeficient = 0.001, regularization_coeficient = 0.1, k = 25):
         self.max_steps = max_steps
         self.n_latent_features = n_latent_features
         self.learning_coeficient = learning_coeficient
         self.regularization_coeficient = regularization_coeficient
         self.k = k
 
-    def train(self, dataset, context, n_user, n_item, max_rating = 5, min_rating = 1):
+    def train(self, dataset, context, n_user, n_item, max_rating = 5, min_rating = 1, callback = None, callback_interval = 10):
         if np.shape(dataset)[0] != np.shape(context)[0]:
             raise Exception("Dataset and context must have the same number of lines")
         if np.shape(dataset)[1] != 3:
@@ -28,7 +29,9 @@ class ContextualSVD():
         for step_count in range(self.max_steps):
             for i in range(n_dataset):
                 self._train_step(dataset[i, 0], dataset[i, 1], dataset[i, 2], context[i, :])
-            step_count % 10 == 0 and print(step_count)
+
+            if step_count % callback_interval == 0 and step_count != 0 and callback is not None:
+                callback(self)
 
     def _initialize_variables(self, dataset, context):
         self.global_mean = np.mean(dataset[:, 2])
@@ -39,6 +42,7 @@ class ContextualSVD():
         self.user_feature = np.ones((self.n_user, self.n_latent_features)) * 0.1
 
         self.item_context_matrix = np.zeros((self.n_item, self.n_context))
+
 
     def _item_mean(self, dataset):
         n_ratings = np.shape(dataset)[0]
@@ -99,8 +103,8 @@ class ContextualSVD():
 
     def predict_dataset(self, dataset, context):
         n_dataset, n_columns = np.shape(dataset)
-        if n_columns != 2:
-            print("ignoring columns greater than 2")
+        #if n_columns != 2:
+        #    print("ignoring columns greater than 2")
 
         y_hat = np.zeros(n_dataset)
         for i in range(n_dataset):
@@ -118,7 +122,6 @@ def one_hot_encoder(categorical_matrix, na_value = -1):
     the sum of all N's as the number of columns.
     '''
     max_values = np.max(categorical_matrix, axis=0)
-    print(max_values)
     n_features = sum(max_values)
     n_line, n_col = np.shape(categorical_matrix)
 
@@ -142,9 +145,46 @@ def holdout(n_samples, train_ratio = 0.7):
     n = round(n_samples * train_ratio)
     return ids[:n], ids[n:]
 
+class LearningCurve():
+    def __init__(self, dataset, context, train, test, eval_func= mae):
+        self.results = []
+        self.dataset = dataset
+        self.context = context
+        self.train = train
+        self.test = test
+        self.eval_func = eval_func
+        self.i = 0
+
+    def callback_function(self, objSVD):
+        self.i += 1
+
+        y_hat_train = objSVD.predict_dataset(self.dataset[self.train, :], self.context[self.train, :])
+        y_train = self.dataset[self.train, 2]
+        eval_train = self.eval_func(y_hat_train, y_train)
+
+        y_hat_test = objSVD.predict_dataset(self.dataset[self.test, :], self.context[self.test, :])
+        y_test = self.dataset[self.test, 2]
+        eval_test = self.eval_func(y_hat_test, y_test)
+
+        self.results.append([eval_train, eval_test])
+        print(self.i, ") Train: ",  eval_train, "\tTest: ", eval_test)
+
+    def plot(self):
+        eval_name = self.eval_func.__name__
+        results = np.array(self.results)
+        plt.plot(results[:,0], label = "Train " + eval_name)
+        plt.plot(results[:,1], label = "Test " + eval_name)
+        plt.title("Learning Curve")
+        plt.legend(loc='lower left')
+
+        plt.grid(True)
+        plt.show()
+
+
 if __name__ == "__main__":
     import pandas as pd
-    file = ""
+
+    file = "/home/gabriel/Dropbox/Mestrado/ldos_comoda.csv"
     m = pd.read_csv(file, header=None )
 
     dataset = m.values[:, 0:3]
@@ -156,12 +196,9 @@ if __name__ == "__main__":
     train, test = holdout(dataset.shape[0])
 
     print("training")
-    svd.train(dataset[train, :], onehot_context[train, :], 268 + 1,4381 + 1)
+    learning_curve = LearningCurve(dataset, onehot_context, train, test)
+    svd.train(dataset[train, :], onehot_context[train, :], 268 + 1,4381 + 1, callback = learning_curve.callback_function)
 
-    y_hat = svd.predict_dataset(dataset[test, :], onehot_context[test, :])
-    y = dataset[test, 2]
-
-    print(mae(y, y_hat))
-
+    learning_curve.plot()
     print("finished")
 
