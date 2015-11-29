@@ -3,15 +3,18 @@ import numpy as np
 import random
 import matplotlib.pyplot as plt
 
+
 class ContextualSVD():
-    def __init__(self, max_steps = 200, n_latent_features = 40, learning_coeficient = 0.001, regularization_coeficient = 0.1, k = 25):
+    def __init__(self, max_steps=200, n_latent_features=40, learning_coeficient=0.001, regularization_coeficient=0.001,
+                 k=10, mode = 'item'):
         self.max_steps = max_steps
         self.n_latent_features = n_latent_features
         self.learning_coeficient = learning_coeficient
         self.regularization_coeficient = regularization_coeficient
         self.k = k
+        self.mode = mode
 
-    def train(self, dataset, context, n_user, n_item, max_rating = 5, min_rating = 1, callback = None, callback_interval = 10):
+    def train(self, dataset, context, n_user, n_item, max_rating=5, min_rating=1, callback=None, callback_interval=10):
         if np.shape(dataset)[0] != np.shape(context)[0]:
             raise Exception("Dataset and context must have the same number of lines")
         if np.shape(dataset)[1] != 3:
@@ -26,12 +29,16 @@ class ContextualSVD():
         self._initialize_variables(dataset, context)
         n_dataset = np.shape(dataset)[0]
 
+        callback(self)
+        train_order = [i for i in range(n_dataset)]
         for step_count in range(self.max_steps):
-            for i in range(n_dataset):
+            random.shuffle(train_order)
+            for i in train_order:
                 self._train_step(dataset[i, 0], dataset[i, 1], dataset[i, 2], context[i, :])
 
             if step_count % callback_interval == 0 and step_count != 0 and callback is not None:
                 callback(self)
+        callback(self)
 
     def _initialize_variables(self, dataset, context):
         self.global_mean = np.mean(dataset[:, 2])
@@ -41,7 +48,10 @@ class ContextualSVD():
         self.item_feature = np.ones((self.n_item, self.n_latent_features)) * 0.1
         self.user_feature = np.ones((self.n_user, self.n_latent_features)) * 0.1
 
-        self.item_context_matrix = np.zeros((self.n_item, self.n_context))
+        if self.mode == 'item':
+            self.item_context_matrix = np.zeros((self.n_item, self.n_context))
+        if self.mode == 'context':
+            self.item_context_matrix = np.zeros((1, self.n_context))
 
 
     def _item_mean(self, dataset):
@@ -55,7 +65,7 @@ class ContextualSVD():
             items_mean[item] += rating
             items_count[item] += 1
 
-        self.item_mean =  items_mean / (self.k + items_count)
+        self.item_mean = items_mean / (self.k + items_count)
 
     def _user_offset(self, dataset):
         n_ratings = np.shape(dataset)[0]
@@ -82,18 +92,35 @@ class ContextualSVD():
                                       (err * self.user_feature[user, :] -
                                        self.regularization_coeficient * self.item_feature[item, :])
 
+
         self.user_offset[user] += self.learning_coeficient * \
-                                      (err - self.regularization_coeficient * self.user_offset[user])
+                                  (err - self.regularization_coeficient * self.user_offset[user])
 
         nonzero_context = np.nonzero(context)
-        self.item_context_matrix[item, nonzero_context]  += self.learning_coeficient * \
-                                      (err - self.regularization_coeficient * self.item_context_matrix[item, nonzero_context])
+        if self.mode == 'item':
+            self.item_context_matrix[item, nonzero_context] += self.learning_coeficient * \
+                                                           (err - self.regularization_coeficient *
+                                                            self.item_context_matrix[item, nonzero_context])
+        if self.mode == 'context':
+            self.item_context_matrix[0, nonzero_context] += self.learning_coeficient * \
+                                                           (err - self.regularization_coeficient *
+                                                            self.item_context_matrix[0, nonzero_context])
 
     def predict_rating(self, user_id, item_id, context):
         nonzero_context = np.nonzero(context)
-        prediction = np.dot(self.user_feature[user_id, :], self.item_feature[item_id, :]) + \
-                        self.item_mean[item_id] + self.user_offset[user_id] + \
-                        np.sum(self.item_context_matrix[item_id, nonzero_context])
+        if self.mode == 'item':
+            prediction = np.dot(self.user_feature[user_id, :], self.item_feature[item_id, :]) + \
+                     self.item_mean[item_id] + self.user_offset[user_id] + \
+                     np.sum(self.item_context_matrix[item_id, nonzero_context])
+
+        elif self.mode == 'context':
+            prediction = np.dot(self.user_feature[user_id, :], self.item_feature[item_id, :]) + \
+                     self.item_mean[item_id] + self.user_offset[user_id] + \
+                     np.sum(self.item_context_matrix[0, nonzero_context])
+
+        else:
+            prediction = np.dot(self.user_feature[user_id, :], self.item_feature[item_id, :]) + \
+                     self.item_mean[item_id] + self.user_offset[user_id]
 
         if prediction > self.max_rating:
             prediction = self.max_rating
@@ -103,7 +130,7 @@ class ContextualSVD():
 
     def predict_dataset(self, dataset, context):
         n_dataset, n_columns = np.shape(dataset)
-        #if n_columns != 2:
+        # if n_columns != 2:
         #    print("ignoring columns greater than 2")
 
         y_hat = np.zeros(n_dataset)
@@ -112,7 +139,8 @@ class ContextualSVD():
 
         return y_hat
 
-def one_hot_encoder(categorical_matrix, na_value = -1):
+
+def one_hot_encoder(categorical_matrix, na_value=-1):
     '''
     Returns the one-hot-encoded feature matrix of a
     categorical matrix. Assumes a matrix with categorical variables,
@@ -136,45 +164,80 @@ def one_hot_encoder(categorical_matrix, na_value = -1):
 
     return result
 
+
 def mae(y, y_hat):
     return np.mean(np.abs(y - y_hat))
 
-def holdout(n_samples, train_ratio = 0.7):
+
+def holdout(n_samples, train_ratio=0.7):
     ids = [i for i in range(n_samples)]
     random.shuffle(ids)
     n = round(n_samples * train_ratio)
     return ids[:n], ids[n:]
 
+
 class LearningCurve():
-    def __init__(self, dataset, context, train, test, eval_func= mae):
+    def __init__(self, dataset, context, train, test, eval_func=mae, aggregation = None):
         self.results = []
-        self.dataset = dataset
-        self.context = context
-        self.train = train
-        self.test = test
-        self.eval_func = eval_func
-        self.i = 0
+        self._dataset = dataset
+        self._context = context
+        self._train = train
+        self._test = test
+        self._eval_func = eval_func
+        self._i = 0
+        self._aggregation = aggregation
+        if aggregation == 'user':
+            self._aggregation_train = self._aggregation_map(dataset[train, :], 0)
+            self._aggregation_test = self._aggregation_map(dataset[test, :], 0)
+        elif aggregation == 'item':
+            self._aggregation_train = self._aggregation_map(dataset[train, :], 1)
+            self._aggregation_test  = self._aggregation_map(dataset[test, :], 1)
+
+        elif aggregation != None:
+            print("Not recognized option for aggregation:\"", aggregation, "\". Assuming None.")
+
+    def _aggregation_map(self, dataset, key_column):
+        agg_map = {}
+        n_dataset = np.shape(dataset)[0]
+        for i in range(n_dataset):
+            key = dataset[i, key_column]
+            if key not in agg_map:
+                agg_map[key] = []
+            agg_map[key].append(i)
+        return agg_map
+
+    def _eval(self, objSVD, eval_set):
+        y_hat = objSVD.predict_dataset(self._dataset[eval_set, :], self._context[eval_set, :])
+        y = self._dataset[eval_set, 2]
+        return self._eval_func(y_hat, y)
 
     def callback_function(self, objSVD):
-        self.i += 1
+        self._i += 1
 
-        y_hat_train = objSVD.predict_dataset(self.dataset[self.train, :], self.context[self.train, :])
-        y_train = self.dataset[self.train, 2]
-        eval_train = self.eval_func(y_hat_train, y_train)
+        if self._aggregation in ['user', 'item']:
+            agg_train = np.array([self._eval(objSVD, eval_set) for (key, eval_set) in self._aggregation_train.items()])
+            agg_test = np.array([self._eval(objSVD, eval_set) for (key, eval_set) in self._aggregation_test.items()])
 
-        y_hat_test = objSVD.predict_dataset(self.dataset[self.test, :], self.context[self.test, :])
-        y_test = self.dataset[self.test, 2]
-        eval_test = self.eval_func(y_hat_test, y_test)
+            eval_train = np.mean(agg_train)
+            eval_test = np.mean(agg_test)
+
+        else:
+            eval_train = self._eval(objSVD, self._train)
+            eval_test = self._eval(objSVD, self._test)
 
         self.results.append([eval_train, eval_test])
-        print(self.i, ") Train: ",  eval_train, "\tTest: ", eval_test)
+        print(self._i, ") Train: ", eval_train, "\tTest: ", eval_test)
 
     def plot(self):
-        eval_name = self.eval_func.__name__
+        eval_name = self._eval_func.__name__
         results = np.array(self.results)
-        plt.plot(results[:,0], label = "Train " + eval_name)
-        plt.plot(results[:,1], label = "Test " + eval_name)
-        plt.title("Learning Curve")
+        plt.plot(results[:, 0], label="Train " + eval_name)
+        plt.plot(results[:, 1], label="Test " + eval_name)
+        title = "Learning Curve"
+        if self._aggregation in ['user', 'item']:
+            title += " aggregated by " + self._aggregation
+
+        plt.title(title)
         plt.legend(loc='lower left')
 
         plt.grid(True)
@@ -183,22 +246,40 @@ class LearningCurve():
 
 if __name__ == "__main__":
     import pandas as pd
+    random.seed(100)
 
-    file = "/home/gabriel/Dropbox/Mestrado/ldos_comoda.csv"
-    m = pd.read_csv(file, header=None )
+    file = ""
+
+    m = pd.read_csv(file, header=None)
 
     dataset = m.values[:, 0:3]
-    contexts = m.values[:, 7: 18]
+    contexts = m.values[:, 7: 18+1]
 
     onehot_context = one_hot_encoder(contexts)
-    svd = ContextualSVD()
-
-    train, test = holdout(dataset.shape[0])
+    svd = ContextualSVD(max_steps=500, mode='item')
 
     print("training")
-    learning_curve = LearningCurve(dataset, onehot_context, train, test)
-    svd.train(dataset[train, :], onehot_context[train, :], 268 + 1,4381 + 1, callback = learning_curve.callback_function)
+    results_test = []
+    for i in range(100, 2000, 100):
+        current_subset = [j for j in range(dataset.shape[0])]
+        random.shuffle(current_subset)
+        current_subset = current_subset[:i]
 
-    learning_curve.plot()
+        current_dataset = dataset[current_subset, :]
+        current_onehot_context = onehot_context[current_subset, :]
+
+        train, test = holdout(current_dataset.shape[0])
+        learning_curve = LearningCurve(current_dataset, current_onehot_context, train, test, aggregation='None')
+        svd.train(current_dataset[train, :], current_onehot_context[train, :], 268 + 1, 4381 + 1, callback=learning_curve.callback_function)
+        current_result = learning_curve.results[-1]
+        print(current_result)
+        results_test.append(current_result)
+        #learning_curve.plot()
+
+    results = np.array(results_test)
+    #print("mean", np.mean(results))
+    #print("std", np.std(results))
+    plt.plot(results)
+    plt.show()
+    #learning_curve.plot()
     print("finished")
-
