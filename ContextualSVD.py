@@ -215,11 +215,11 @@ class LearningCurve():
         self._i += 1
 
         if self._aggregation in ['user', 'item']:
-            agg_train = np.array([self._eval(objSVD, eval_set) for (key, eval_set) in self._aggregation_train.items()])
-            agg_test = np.array([self._eval(objSVD, eval_set) for (key, eval_set) in self._aggregation_test.items()])
+            agg_train = np.array([[self._eval(objSVD, eval_set), len(eval_set)] for (key, eval_set) in self._aggregation_train.items()])
+            self.agg_test = np.array([[self._eval(objSVD, eval_set), len(eval_set)] for (key, eval_set) in self._aggregation_test.items()])
 
-            eval_train = np.mean(agg_train)
-            eval_test = np.mean(agg_test)
+            eval_train = np.average(agg_train[:, 0], weights=agg_train[:, 1])
+            eval_test = np.average(self.agg_test[:, 0], weights=self.agg_test[:, 1])
 
         else:
             eval_train = self._eval(objSVD, self._train)
@@ -229,15 +229,21 @@ class LearningCurve():
         print(self._i, ") Train: ", eval_train, "\tTest: ", eval_test)
 
     def plot(self):
-        eval_name = self._eval_func.__name__
         results = np.array(self.results)
-        plt.plot(results[:, 0], label="Train " + eval_name)
-        plt.plot(results[:, 1], label="Test " + eval_name)
-        title = "Learning Curve"
-        if self._aggregation in ['user', 'item']:
-            title += " aggregated by " + self._aggregation
+        plt.plot(results[:, 0], label="Train")
+        plt.plot(results[:, 1], label="Test")
 
-        plt.title(title)
+        plt.title("Learning curve")
+
+        y_label = ""
+        if self._aggregation in ['user', 'item']:
+            y_label += self._aggregation + "-"
+        eval_name = self._eval_func.__name__
+
+        y_label += eval_name
+        plt.ylabel(y_label)
+
+        plt.xlabel("Iteration")
         plt.legend(loc='lower left')
 
         plt.grid(True)
@@ -246,7 +252,7 @@ class LearningCurve():
 
 if __name__ == "__main__":
     import pandas as pd
-    random.seed(100)
+    random.seed(101)
 
     file = ""
 
@@ -258,28 +264,7 @@ if __name__ == "__main__":
     onehot_context = one_hot_encoder(contexts)
     svd = ContextualSVD(max_steps=500, mode='item')
 
-    print("training")
-    results_test = []
-    for i in range(100, 2000, 100):
-        current_subset = [j for j in range(dataset.shape[0])]
-        random.shuffle(current_subset)
-        current_subset = current_subset[:i]
-
-        current_dataset = dataset[current_subset, :]
-        current_onehot_context = onehot_context[current_subset, :]
-
-        train, test = holdout(current_dataset.shape[0])
-        learning_curve = LearningCurve(current_dataset, current_onehot_context, train, test, aggregation='None')
-        svd.train(current_dataset[train, :], current_onehot_context[train, :], 268 + 1, 4381 + 1, callback=learning_curve.callback_function)
-        current_result = learning_curve.results[-1]
-        print(current_result)
-        results_test.append(current_result)
-        #learning_curve.plot()
-
-    results = np.array(results_test)
-    #print("mean", np.mean(results))
-    #print("std", np.std(results))
-    plt.plot(results)
-    plt.show()
-    #learning_curve.plot()
-    print("finished")
+    train, test = holdout(dataset.shape[0])
+    learning_curve = LearningCurve(dataset, onehot_context, train, test, aggregation='user')
+    svd.train(dataset[train, :], onehot_context[train, :], 268 + 1, 4381 + 1, callback=learning_curve.callback_function)
+    learning_curve.plot()
