@@ -254,7 +254,7 @@ if __name__ == "__main__":
     import pandas as pd
     random.seed(101)
 
-    file = ""
+    file = "/home/gabriel/Dropbox/Mestrado/Sistemas de Recomendação/Datasets/ldos_comoda.csv"
 
     m = pd.read_csv(file, header=None)
 
@@ -262,9 +262,9 @@ if __name__ == "__main__":
     contexts = m.values[:, 7: 18+1]
 
     onehot_context = one_hot_encoder(contexts)
-    svd = ContextualSVD(max_steps=500, mode='item')
+    svd = ContextualSVD(max_steps=700, mode='None')
 
     train, test = holdout(dataset.shape[0])
-    learning_curve = LearningCurve(dataset, onehot_context, train, test, aggregation='user')
+    learning_curve = LearningCurve(dataset, onehot_context, train, test, aggregation=None)
     svd.train(dataset[train, :], onehot_context[train, :], 268 + 1, 4381 + 1, callback=learning_curve.callback_function)
     learning_curve.plot()
