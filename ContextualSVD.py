@@ -4,41 +4,60 @@ import random
 import matplotlib.pyplot as plt
 
 
+class PrintEpoch():
+    def __init__(self):
+        self.i = 0
+    def callback(self, _):
+        self.i += 1
+        print(self.i)
+
+
 class ContextualSVD():
-    def __init__(self, max_steps=200, n_latent_features=40, learning_coeficient=0.001, regularization_coeficient=0.001,
-                 k=10, mode = 'item'):
+    def __init__(self, n_user, n_item, max_steps=200, n_latent_features=40, learning_coeficient=0.001,
+                 regularization_coeficient=0.001, k=10, mode = 'item', max_rating=5, min_rating=1):
         self.max_steps = max_steps
+        self.n_user = n_user
+        self.n_item = n_item
+        self.max_rating = max_rating
+        self.min_rating = min_rating
         self.n_latent_features = n_latent_features
         self.learning_coeficient = learning_coeficient
         self.regularization_coeficient = regularization_coeficient
         self.k = k
         self.mode = mode
 
-    def train(self, dataset, context, n_user, n_item, max_rating=5, min_rating=1, callback=None, callback_interval=10):
+
+    def train(self, dataset, context, callback = None, callback_interval=10):
+
         if np.shape(dataset)[0] != np.shape(context)[0]:
             raise Exception("Dataset and context must have the same number of lines")
         if np.shape(dataset)[1] != 3:
             raise Exception("Dataset must have only 3 columns: user_id, item_id and rating")
 
-        self.n_user = n_user
-        self.n_item = n_item
         self.n_context = np.shape(context)[1]
-        self.max_rating = max_rating
-        self.min_rating = min_rating
+
 
         self._initialize_variables(dataset, context)
         n_dataset = np.shape(dataset)[0]
 
-        callback(self)
+        if callback is not None:
+            callback(self)
+
         train_order = [i for i in range(n_dataset)]
         for step_count in range(self.max_steps):
             random.shuffle(train_order)
             for i in train_order:
                 self._train_step(dataset[i, 0], dataset[i, 1], dataset[i, 2], context[i, :])
 
-            if step_count % callback_interval == 0 and step_count != 0 and callback is not None:
-                callback(self)
-        callback(self)
+            if step_count % callback_interval == 0 and step_count != 0:
+                if callback is not None:
+                    callback(self)
+                else:
+                    pass
+                    #print(step_count)
+
+        if callback is not None:
+            callback(self)
 
     def _initialize_variables(self, dataset, context):
         self.global_mean = np.mean(dataset[:, 2])
@@ -129,7 +148,7 @@ class ContextualSVD():
         return prediction
 
     def predict_dataset(self, dataset, context):
-        n_dataset, n_columns = np.shape(dataset)
+        n_dataset = np.shape(dataset)[0]
         # if n_columns != 2:
         #    print("ignoring columns greater than 2")
 
@@ -174,6 +193,7 @@ def holdout(n_samples, train_ratio=0.7):
     random.shuffle(ids)
     n = round(n_samples * train_ratio)
     return ids[:n], ids[n:]
+
 
 
 class LearningCurve():
