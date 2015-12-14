@@ -45,7 +45,7 @@ class ContextualSVD():
 
         train_order = [i for i in range(n_dataset)]
         for step_count in range(self.max_steps):
-            #random.shuffle(train_order)
+            random.shuffle(train_order)
             for i in train_order:
                 self._train_step(dataset[i, 0], dataset[i, 1], dataset[i, 2], context[i, :])
 
@@ -201,8 +201,8 @@ class LearningCurve():
         self.results = []
         self._dataset = dataset
         self._context = context
-        self._train = train
-        self._test = test
+        self._train = np.array(train)
+        self._test = np.array(test)
         self._eval_func = eval_func
         self._i = 0
         self._aggregation = aggregation
@@ -235,8 +235,8 @@ class LearningCurve():
         self._i += 1
 
         if self._aggregation in ['user', 'item']:
-            agg_train = np.array([[self._eval(objSVD, eval_set), len(eval_set)] for (key, eval_set) in self._aggregation_train.items()])
-            self.agg_test = np.array([[self._eval(objSVD, eval_set), len(eval_set)] for (key, eval_set) in self._aggregation_test.items()])
+            agg_train = np.array([[self._eval(objSVD, self._train[eval_set]), len(eval_set)] for (key, eval_set) in self._aggregation_train.items()])
+            self.agg_test = np.array([[self._eval(objSVD, self._test[eval_set]), len(eval_set)] for (key, eval_set) in self._aggregation_test.items()])
 
             eval_train = np.average(agg_train[:, 0], weights=agg_train[:, 1])
             eval_test = np.average(self.agg_test[:, 0], weights=self.agg_test[:, 1])
@@ -272,19 +272,36 @@ class LearningCurve():
 
 if __name__ == "__main__":
     import pandas as pd
-    random.seed(101)
+    from TestFramework import OneHotEncoder
 
-    file = "/home/gabriel/Dropbox/Mestrado/Sistemas de Recomendação/Datasets/ldos_comoda.csv"
+    random.seed(667)
+
+    #file = "/home/gabriel/Dropbox/Mestrado/Sistemas de Recomendação/Datasets/ldos_comoda.csv"
+    file = "/home/gabriel/ldos_comoda.csv"
 
     m = pd.read_csv(file, header=None)
+    n_context_choice = 5
+    n_repetitions = 5
 
     dataset = m.values[:, 0:3]
-    contexts = m.values[:, 7: 18+1]
+    context = m.values[:, 7: 19]
 
-    onehot_context = one_hot_encoder(contexts)
-    svd = ContextualSVD(max_steps=700, mode='None')
+    n_dataset = np.shape(dataset)[0]
 
-    train, test = holdout(dataset.shape[0])
-    learning_curve = LearningCurve(dataset, onehot_context, train, test, aggregation=None)
-    svd.train(dataset[train, :], onehot_context[train, :], 268 + 1, 4381 + 1, callback=learning_curve.callback_function)
-    learning_curve.plot()
+    n_user = np.max(dataset[:, 0]) + 1
+    n_item = np.max(dataset[:, 1]) + 1
+
+    encoder = OneHotEncoder(context, na_value=-1)
+    context_dataset = encoder.predict(context)
+
+    train, test = holdout(n_dataset)
+
+    learning = LearningCurve(dataset, context_dataset, train, test, aggregation = 'user')
+    svd = ContextualSVD(n_user, n_item, max_steps=400, n_latent_features=80, mode='item')
+
+    svd.train( dataset[train, :], context_dataset[train, :], callback = learning.callback_function, callback_interval=1)
+    learning.plot()
+
+
+
+

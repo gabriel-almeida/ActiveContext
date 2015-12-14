@@ -4,6 +4,7 @@ import numpy as np
 import ContextualSVD
 import matplotlib.pyplot as plt
 import CramersV
+import MAE
 
 class OneHotEncoder():
     def __init__(self, categorical_matrix, na_value=-1):
@@ -266,7 +267,7 @@ if __name__ == "__main__":
     n_user = np.max(dataset[:, 0]) + 1
     n_item = np.max(dataset[:, 1]) + 1
 
-    svd = ContextualSVD.ContextualSVD(n_user, n_item, max_steps=10)
+    svd = ContextualSVD.ContextualSVD(n_user, n_item, max_steps=10, n_latent_features=40, mode='context')
     encoder = OneHotEncoder(context, na_value=-1)
 
     largest_deviation = LargestDeviationContextSelection(svd, encoder)
