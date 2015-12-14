@@ -20,34 +20,35 @@ def cramersV(x, y):
     chisq = np.sum((table - expect) ** 2 / expect)
     return np.sqrt(chisq / (n * (np.min(table.shape) - 1)))
 
-# Carregando os dados
-with open("MRMR_data.csv") as csvfile:
-    readCSV = csv.reader(csvfile, delimiter=',')
+if __name__ == "__main__":
+    # Carregando os dados
+    with open("MRMR_data.csv") as csvfile:
+        readCSV = csv.reader(csvfile, delimiter=',')
 
-    headers = next(readCSV)
+        headers = next(readCSV)
 
-    cabecalho = []
-    dados = []
+        cabecalho = []
+        dados = []
 
-    for i in headers:
-        cabecalho.append(i)
+        for i in headers:
+            cabecalho.append(i)
 
-    for i in readCSV:
-        dados.append(np.array(i))
+        for i in readCSV:
+            dados.append(np.array(i))
 
-    dados = np.asarray(dados)
-    print("Total de notas:",len(dados))
+        dados = np.asarray(dados)
+        print("Total de notas:",len(dados))
 
-    # Removendo todas as linhas que tenha algum '-1'
-    ind_manter = []
-    for i in range(1, len(dados)):
-        if 'NA' not in dados[i, 8:19]:
-            ind_manter.append(i)
+        # Removendo todas as linhas que tenha algum '-1'
+        ind_manter = []
+        for i in range(1, len(dados)):
+            if 'NA' not in dados[i, 8:19]:
+                ind_manter.append(i)
 
-    dados = dados[ind_manter]
-    print("Total de notas validas:",len(dados))
+        dados = dados[ind_manter]
+        print("Total de notas validas:",len(dados))
 
-    # Testando o cramer's v
-    for i in range(8, 19):
-        for j in range(i + 1, 20):
-            print(i, cabecalho[i], j, cabecalho[j], "->", cramersV(dados[:, i], dados[:, j]))
+        # Testando o cramer's v
+        for i in range(8, 19):
+            for j in range(i + 1, 20):
+                print(i, cabecalho[i], j, cabecalho[j], "->", cramersV(dados[:, i], dados[:, j]))

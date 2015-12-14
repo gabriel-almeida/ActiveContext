@@ -1,10 +1,9 @@
-from jinja2.nodes import Concat
-
 __author__ = 'gabriel'
 import random
 import numpy as np
 import ContextualSVD
-
+import matplotlib.pyplot as plt
+import CramersV
 
 class OneHotEncoder():
     def __init__(self, categorical_matrix, na_value=-1):
@@ -82,6 +81,12 @@ class RandomContextSelection():
         options = list(range(self.encoder.n_contextual_factor))
         return random.sample(options, self.n_context_choice)
 
+class AllContextSelection(RandomContextSelection):
+    def __init__(self, train_method, encoder):
+        RandomContextSelection.__init__(self, train_method, encoder)
+
+    def choose_contexts(self, sample):
+        return np.array([i for i in range(self.encoder.n_contextual_factor)])
 
 class LargestDeviationContextSelection(RandomContextSelection):
     def __init__(self, train_method, encoder):
@@ -93,7 +98,6 @@ class LargestDeviationContextSelection(RandomContextSelection):
 
     def choose_contexts(self, sample):
         n_contextual_conditions = self.encoder.n_contextual_condition
-        context_index = self.encoder.contextual_factor_index
         n_contextual_factors = self.encoder.n_contextual_factor
 
         all_contexts = np.eye(n_contextual_conditions)
@@ -114,6 +118,68 @@ class LargestDeviationContextSelection(RandomContextSelection):
         context_choice = np.argsort(contextual_factor_weight)[0, n_contextual_factors - self.n_context_choice:]
         return context_choice
 
+
+class CramerLargestDeviation(LargestDeviationContextSelection):
+    def __init__(self, train_method, encoder):
+        LargestDeviationContextSelection.__init__(self, train_method, encoder)
+
+    def obtain_initial_train(self, train_set, context, n_context_choice):
+        LargestDeviationContextSelection.obtain_initial_train(self, train_set, context, n_context_choice)
+        self.__cramer_matrix()
+
+    def __cramer_matrix(self):
+        n_context = np.shape(self.train_context)[1]
+        cramer = np.zeros((n_context, n_context))
+        for i in range(n_context):
+            for j in range(n_context):
+                if i == j:
+                    cramer[i,j] = 1.0
+                else:
+                    cram = CramersV.cramersV(self.train_context[:, i], self.train_context[:, j])
+                    cramer[i, j] = cram
+        self.cramer_matrix = cramer
+
+
+    def choose_contexts(self, sample):
+        n_contextual_conditions = self.encoder.n_contextual_condition
+        n_contextual_factors = self.encoder.n_contextual_factor
+
+        all_contexts = np.eye(n_contextual_conditions)
+        without_context = np.zeros((1, n_contextual_conditions))
+        repeated_sample = np.tile(sample, (n_contextual_conditions, 1))
+
+        prediction_with_contexts = self.train_method.predict_dataset(repeated_sample, all_contexts)
+        prediction_without_context = self.train_method.predict_rating(sample[0], sample[1], without_context)
+        deviation = np.abs(prediction_with_contexts - prediction_without_context)
+
+        contextual_condition_weight = np.multiply(self.normalized_frequency, deviation)
+        contextual_factor_weight = np.zeros((1, n_contextual_factors))
+
+        for i in range(n_contextual_factors - 1):
+            contextual_factor_weight[0, i] = np.mean(contextual_condition_weight[i:i+1])
+
+        context_choice = [np.argmax(contextual_factor_weight)]
+        possible_choices = [i for i in range(n_contextual_factors) if i not in context_choice]
+
+        for i in range(n_context_choice - 1):
+            score = np.zeros(len(possible_choices))
+            for past_choice in context_choice:
+                a = np.multiply(1 - self.cramer_matrix[possible_choices, past_choice],
+                            contextual_factor_weight[0,possible_choices])
+                score += a
+            score = score/len(context_choice)
+            chosen_context = np.argmax(score)
+            index_context = possible_choices[chosen_context]
+            context_choice.append(index_context)
+            possible_choices.remove(index_context)
+
+
+        #get the last n elements
+        # context_choice = np.argsort(contextual_factor_weight)[0, n_contextual_factors - self.n_context_choice:]
+        return context_choice
+
+
+
 class TestFramework():
     def __init__(self, dataset, context, train_ratio=0.5, candidate_ratio=0.25, user_column = 0, item_column = 1):
         self.train_ratio = train_ratio
@@ -131,22 +197,26 @@ class TestFramework():
         self.ids_candidate = ids[train_split:candidate_split]
         self.ids_test = ids[candidate_split:]
 
-    def test_procedure(self, n_context_choice, context_selectors, n_repetitions=10):
+    def test_procedure(self, n_context_choice, context_selectors, n_repetitions=20):
         (nSample, nFeature) = np.shape(self.dataset)
 
         #cast single object to list
-        if type(context_selectors) is not list:
-            context_selectors = [context_selectors]
+        if type(context_selectors) is not dict:
+            context_selectors = {"default": context_selectors}
+
+        #initialize statistics collection
+        results_by_algorithm = {}
+        for name in context_selectors.keys():
+            results_by_algorithm[name] = []
 
         for repetition in range(n_repetitions):
             self.__prepare_holdout(nSample)
-            for selector in context_selectors:
+            for selector_name, selector in context_selectors.items():
                 selector.obtain_initial_train(self.dataset[self.ids_train, :], self.context[self.ids_train, :], n_context_choice)
 
                 for candidate in self.ids_candidate:
                     chosen_contexts = selector.choose_contexts(self.dataset[candidate, :])
                     selector.obtain_contextual_train_sample(self.dataset[candidate, :], self.context[candidate, chosen_contexts], chosen_contexts)
-                    #any more steps here?
 
                 responses = []
                 for test in self.ids_test:
@@ -157,35 +227,53 @@ class TestFramework():
                     responses.append([prediction, current_target])
 
                 responses = np.array(responses)
-                res = mae(responses[:, 0], responses[:, 1])
-                print(str(selector), res)
-                #TODO Plot statistics
+                actual_mae = mae(responses[:, 0], responses[:, 1])
+                print(selector_name, actual_mae)
+                results_by_algorithm[selector_name].append(actual_mae)
+
+        values = [i for i in results_by_algorithm.values()]
+        array_values = np.array(values)
+
+        mean = np.mean(array_values, axis=1)
+
+        labels = [i for i in results_by_algorithm.keys()]
+        labels = np.array(labels)
+
+        sorted_args = np.argsort(labels)
+        plt.plot(mean[sorted_args])
+
+        plt.ylabel("MAE")
+        plt.xticks(np.arange(len(labels)), labels[sorted_args])
+        plt.title("Results")
+        plt.show()
 
 def mae(y, y_hat):
     return np.mean(np.abs(y - y_hat))
 
 if __name__ == "__main__":
     import pandas as pd
-    random.seed(101)
+    random.seed(100)
 
     #file = "/home/gabriel/Dropbox/Mestrado/Sistemas de Recomendação/Datasets/ldos_comoda.csv"
     file = "/home/gabriel/ldos_comoda.csv"
 
     m = pd.read_csv(file, header=None)
-    n_context_choice = 1
-
+    n_context_choice = 5
+    n_repetitions = 5
     dataset = m.values[:, 0:3]
     context = m.values[:, 7: 19]
 
     n_user = np.max(dataset[:, 0]) + 1
     n_item = np.max(dataset[:, 1]) + 1
 
-    svd = ContextualSVD.ContextualSVD(n_user, n_item)
+    svd = ContextualSVD.ContextualSVD(n_user, n_item, max_steps=10)
     encoder = OneHotEncoder(context, na_value=-1)
 
     largest_deviation = LargestDeviationContextSelection(svd, encoder)
     random_choice = RandomContextSelection(svd, encoder)
-    selectors = [largest_deviation, random_choice]
+    baseline = AllContextSelection(svd, encoder)
+    selectors = {"Largest Deviation": largest_deviation, "Random": random_choice, "All Contexts": baseline,
+                 "Cramer Deviation": CramerLargestDeviation(svd, encoder)}
 
     tf = TestFramework(dataset, context)
-    tf.test_procedure(1, selectors)
+    tf.test_procedure(n_context_choice, selectors, n_repetitions = n_repetitions)
