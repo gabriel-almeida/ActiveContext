@@ -4,7 +4,7 @@ import numpy as np
 import ContextualSVD
 import matplotlib.pyplot as plt
 import CramersV
-import MAE
+import mae
 
 class OneHotEncoder():
     def __init__(self, categorical_matrix, na_value=-1):
@@ -77,6 +77,18 @@ class RandomContextSelection():
             self.obtain_initial_train(train_set, train_context, self.n_context_choice)
         context = np.reshape(context, (1, self.encoder.n_contextual_factor))
         return self.train_method.predict_rating(sample[0], sample[1], self.encoder.predict(context))
+
+
+    def retrain(self):
+        if len(self.train_buffer) > 0:
+            train_set = np.vstack((self.train_set, self.train_buffer))
+            train_context = np.vstack((self.train_context, self.context_buffer))
+            #Free the buffers
+            self.train_buffer = []
+            self.context_buffer = []
+            #retrain the model
+            self.obtain_initial_train(train_set, train_context, self.n_context_choice)
+
 
     def choose_contexts(self, sample):
         options = list(range(self.encoder.n_contextual_factor))
@@ -224,11 +236,11 @@ class TestFramework():
                     #chosen_contexts = selector.choose_contexts(self.dataset[test, :])
                     #prediction = selector.obtain_contextual_test_sample(self.dataset[test, :], self.context[test, chosen_contexts])
                     prediction = selector.obtain_contextual_test_sample(self.dataset[test, :], self.context[test, :])
-                    current_target = self.dataset[test, 2]
-                    responses.append([prediction, current_target])
+                    responses.append(prediction)
 
-                responses = np.array(responses)
-                actual_mae = mae(responses[:, 0], responses[:, 1])
+                y_hat = np.array(responses)
+                actual_mae = mae.MAE().calculate(dataset[self.ids_test, :], y_hat)
+
                 print(selector_name, actual_mae)
                 results_by_algorithm[selector_name].append(actual_mae)
 
@@ -248,9 +260,6 @@ class TestFramework():
         plt.title("Results")
         plt.show()
 
-def mae(y, y_hat):
-    return np.mean(np.abs(y - y_hat))
-
 if __name__ == "__main__":
     import pandas as pd
     random.seed(100)
@@ -259,7 +268,7 @@ if __name__ == "__main__":
     file = "/home/gabriel/ldos_comoda.csv"
 
     m = pd.read_csv(file, header=None)
-    n_context_choice = 5
+    n_context_choice = 1
     n_repetitions = 5
     dataset = m.values[:, 0:3]
     context = m.values[:, 7: 19]
