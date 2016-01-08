@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import CramersV
 import mae
 
+import hashlib
 class OneHotEncoder():
     def __init__(self, categorical_matrix, na_value=-1):
         '''
@@ -70,11 +71,15 @@ class RandomContextSelection():
         if len(self.train_buffer) > 0:
             train_set = np.vstack((self.train_set, self.train_buffer))
             train_context = np.vstack((self.train_context, self.context_buffer))
+
+            print('train_context - ',hashlib.sha1(train_context).hexdigest())
+
             #Free the buffers
             self.train_buffer = []
             self.context_buffer = []
             #retrain the model
             self.obtain_initial_train(train_set, train_context, self.n_context_choice)
+
         context = np.reshape(context, (1, self.encoder.n_contextual_factor))
         return self.train_method.predict_rating(sample[0], sample[1], self.encoder.predict(context))
 
@@ -188,10 +193,24 @@ class CramerLargestDeviation(LargestDeviationContextSelection):
 
 
         #get the last n elements
-        # context_choice = np.argsort(contextual_factor_weight)[0, n_contextual_factors - self.n_context_choice:]
+        context_choice = np.argsort(contextual_factor_weight)[0, n_contextual_factors - self.n_context_choice:]
         return context_choice
 
 
+# def complete_hash(obj):
+#     hash = hashlib.sha1()
+#     for attr in obj.__dict__.values():
+#         hash.update(str(attr))
+#     return hash.hexdigest()
+
+def complete_hash(obj):
+    hash = hashlib.sha1()
+    hash.update(obj.item_context_matrix)
+    hash.update(obj.item_feature)
+    hash.update(obj.item_mean)
+    hash.update(obj.user_feature)
+    hash.update(obj.user_offset)
+    return hash.hexdigest()
 
 class TestFramework():
     def __init__(self, dataset, context, train_ratio=0.5, candidate_ratio=0.25, user_column = 0, item_column = 1):
@@ -213,6 +232,8 @@ class TestFramework():
     def test_procedure(self, n_context_choice, context_selectors, n_repetitions=20):
         (nSample, nFeature) = np.shape(self.dataset)
 
+        arq = open("/home/victor/Doutorado/TEBDVI/ActiveContext/debug.csv", 'w')
+
         #cast single object to list
         if type(context_selectors) is not dict:
             context_selectors = {"default": context_selectors}
@@ -223,21 +244,29 @@ class TestFramework():
             results_by_algorithm[name] = []
 
         for repetition in range(n_repetitions):
+            print(repetition + 1)
             self.__prepare_holdout(nSample)
             for selector_name, selector in context_selectors.items():
-                selector.obtain_initial_train(self.dataset[self.ids_train, :], self.context[self.ids_train, :], n_context_choice)
 
+                selector.obtain_initial_train(self.dataset[self.ids_train, :], self.context[self.ids_train, :], n_context_choice)
+                print('inicial - ',complete_hash(selector.train_method))
+
+                arq.write(selector_name)
                 for candidate in self.ids_candidate:
                     chosen_contexts = selector.choose_contexts(self.dataset[candidate, :])
                     selector.obtain_contextual_train_sample(self.dataset[candidate, :], self.context[candidate, chosen_contexts], chosen_contexts)
+                    arq.write(str(chosen_contexts))
+                    arq.write(' ')
+                arq.write('\n')
 
                 responses = []
                 for test in self.ids_test:
-                    #chosen_contexts = selector.choose_contexts(self.dataset[test, :])
-                    #prediction = selector.obtain_contextual_test_sample(self.dataset[test, :], self.context[test, chosen_contexts])
+                    # chosen_contexts = selector.choose_contexts(self.dataset[test, :])
+                    # prediction = selector.obtain_contextual_test_sample(self.dataset[test, :], self.context[test, chosen_contexts])
                     prediction = selector.obtain_contextual_test_sample(self.dataset[test, :], self.context[test, :])
                     responses.append(prediction)
 
+                print('final - ', complete_hash(selector.train_method))
                 y_hat = np.array(responses)
                 actual_mae = mae.MAE().calculate(dataset[self.ids_test, :], y_hat)
 
@@ -262,13 +291,13 @@ class TestFramework():
 
 if __name__ == "__main__":
     import pandas as pd
-    random.seed(100)
+    random.seed(1080)
 
     #file = "/home/gabriel/Dropbox/Mestrado/Sistemas de Recomendação/Datasets/ldos_comoda.csv"
-    file = "/home/gabriel/ldos_comoda.csv"
+    file = "/home/victor/Doutorado/TEBDVI/ActiveContext/MRMR_data.csv"
 
-    m = pd.read_csv(file, header=None)
-    n_context_choice = 1
+    m = pd.read_csv(file)
+    n_context_choice = 3
     n_repetitions = 5
     dataset = m.values[:, 0:3]
     context = m.values[:, 7: 19]
@@ -276,7 +305,7 @@ if __name__ == "__main__":
     n_user = np.max(dataset[:, 0]) + 1
     n_item = np.max(dataset[:, 1]) + 1
 
-    svd = ContextualSVD.ContextualSVD(n_user, n_item, max_steps=10, n_latent_features=40, mode='context')
+    svd = ContextualSVD.ContextualSVD(n_user, n_item, max_steps=50, n_latent_features=20, mode='item')
     encoder = OneHotEncoder(context, na_value=-1)
 
     largest_deviation = LargestDeviationContextSelection(svd, encoder)

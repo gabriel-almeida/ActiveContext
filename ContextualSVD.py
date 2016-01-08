@@ -45,7 +45,7 @@ class ContextualSVD():
 
         train_order = [i for i in range(n_dataset)]
         for step_count in range(self.max_steps):
-            random.shuffle(train_order)
+            # random.shuffle(train_order)
             for i in train_order:
                 self._train_step(dataset[i, 0], dataset[i, 1], dataset[i, 2], context[i, :])
 
