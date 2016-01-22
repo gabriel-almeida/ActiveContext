@@ -5,6 +5,7 @@ import ContextualSVD
 import matplotlib.pyplot as plt
 import CramersV
 import mae
+import collections
 
 import hashlib
 class OneHotEncoder():
@@ -72,7 +73,7 @@ class RandomContextSelection():
             train_set = np.vstack((self.train_set, self.train_buffer))
             train_context = np.vstack((self.train_context, self.context_buffer))
 
-            print('train_context - ',hashlib.sha1(train_context).hexdigest())
+            #print('train_context - ',hashlib.sha1(train_context).hexdigest())
 
             #Free the buffers
             self.train_buffer = []
@@ -150,11 +151,8 @@ class CramerLargestDeviation(LargestDeviationContextSelection):
         cramer = np.zeros((n_context, n_context))
         for i in range(n_context):
             for j in range(n_context):
-                if i == j:
-                    cramer[i,j] = 1.0
-                else:
-                    cram = CramersV.cramersV(self.train_context[:, i], self.train_context[:, j])
-                    cramer[i, j] = cram
+                cram = CramersV.cramersV(self.train_context[:, i], self.train_context[:, j])
+                cramer[i, j] = cram
         self.cramer_matrix = cramer
 
 
@@ -182,10 +180,10 @@ class CramerLargestDeviation(LargestDeviationContextSelection):
         for i in range(n_context_choice - 1):
             score = np.zeros(len(possible_choices))
             for past_choice in context_choice:
-                a = np.multiply(1 - self.cramer_matrix[possible_choices, past_choice],
-                            contextual_factor_weight[0,possible_choices])
+                cram = self.cramer_matrix[possible_choices, past_choice]
+                context = contextual_factor_weight[0,possible_choices]
+                a = np.multiply(cram, context)
                 score += a
-            score = score/len(context_choice)
             chosen_context = np.argmax(score)
             index_context = possible_choices[chosen_context]
             context_choice.append(index_context)
@@ -247,9 +245,9 @@ class TestFramework():
             print(repetition + 1)
             self.__prepare_holdout(nSample)
             for selector_name, selector in context_selectors.items():
-
                 selector.obtain_initial_train(self.dataset[self.ids_train, :], self.context[self.ids_train, :], n_context_choice)
-                print('inicial - ',complete_hash(selector.train_method))
+
+                #print('inicial - ',complete_hash(selector.train_method))
 
                 arq.write(selector_name)
                 for candidate in self.ids_candidate:
@@ -266,7 +264,7 @@ class TestFramework():
                     prediction = selector.obtain_contextual_test_sample(self.dataset[test, :], self.context[test, :])
                     responses.append(prediction)
 
-                print('final - ', complete_hash(selector.train_method))
+                #print('final - ', complete_hash(selector.train_method))
                 y_hat = np.array(responses)
                 actual_mae = mae.MAE().calculate(dataset[self.ids_test, :], y_hat)
 
@@ -291,7 +289,7 @@ class TestFramework():
 
 if __name__ == "__main__":
     import pandas as pd
-    random.seed(1080)
+    random.seed(1000)
 
     #file = "/home/gabriel/Dropbox/Mestrado/Sistemas de Recomendação/Datasets/ldos_comoda.csv"
     file = "/home/victor/Doutorado/TEBDVI/ActiveContext/MRMR_data.csv"

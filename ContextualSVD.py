@@ -64,11 +64,12 @@ class ContextualSVD():
         self._item_mean(dataset)
         self._user_offset(dataset)
 
-        self.item_feature = np.ones((self.n_item, self.n_latent_features)) * 0.1
-        self.user_feature = np.ones((self.n_user, self.n_latent_features)) * 0.1
+        self.item_feature = np.random.random((self.n_item, self.n_latent_features)) * 0.1
+        self.user_feature = np.random.random((self.n_user, self.n_latent_features)) * 0.1
 
         if self.mode == 'item':
             self.item_context_matrix = np.zeros((self.n_item, self.n_context))
+
         if self.mode == 'context':
             self.item_context_matrix = np.zeros((1, self.n_context))
 
@@ -111,7 +112,6 @@ class ContextualSVD():
                                       (err * self.user_feature[user, :] -
                                        self.regularization_coeficient * self.item_feature[item, :])
 
-
         self.user_offset[user] += self.learning_coeficient * \
                                   (err - self.regularization_coeficient * self.user_offset[user])
 
@@ -128,9 +128,14 @@ class ContextualSVD():
     def predict_rating(self, user_id, item_id, context):
         nonzero_context = np.nonzero(context)
         if self.mode == 'item':
-            prediction = np.dot(self.user_feature[user_id, :], self.item_feature[item_id, :]) + \
-                     self.item_mean[item_id] + self.user_offset[user_id] + \
-                     np.sum(self.item_context_matrix[item_id, nonzero_context])
+            user_feature = self.user_feature[user_id, :]
+            item_feature = self.item_feature[item_id, :]
+            item_avg = self.item_mean[item_id]
+            offset = self.user_offset[user_id]
+
+            context_sum = np.sum(self.item_context_matrix[item_id, nonzero_context])
+            prediction = np.dot(user_feature, item_feature) + \
+                     item_avg + offset + context_sum
 
         elif self.mode == 'context':
             prediction = np.dot(self.user_feature[user_id, :], self.item_feature[item_id, :]) + \
