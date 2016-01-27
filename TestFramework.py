@@ -94,7 +94,7 @@ if __name__ == "__main__":
 
     m = pd.read_csv(file)
     n_context_choice = 3
-    n_repetitions = 5
+    n_repetitions = 10
     dataset = m.values[:, 0:3]
     context = m.values[:, 7: 19]
 
