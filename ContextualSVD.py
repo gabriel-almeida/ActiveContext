@@ -2,7 +2,7 @@ __author__ = 'gabriel'
 import numpy as np
 import random
 import matplotlib.pyplot as plt
-
+import hashlib
 
 class PrintEpoch():
     def __init__(self):
@@ -162,6 +162,16 @@ class ContextualSVD():
             y_hat[i] = self.predict_rating(dataset[i, 0], dataset[i, 1], context[i, :])
 
         return y_hat
+
+    def complete_hash(self):
+        hash = hashlib.sha1()
+        hash.update(self.item_context_matrix)
+        hash.update(self.item_feature)
+        hash.update(self.item_mean)
+        hash.update(self.user_feature)
+        hash.update(self.user_offset)
+        return hash.hexdigest()
+
 
 
 def one_hot_encoder(categorical_matrix, na_value=-1):
