@@ -2,8 +2,11 @@ __author__ = 'gabriel'
 import numpy as np
 import random
 import CramersV
+import abc
 
-class RandomContextSelection():
+class AbstractContextSelection():
+    __metaclass__ = abc.ABCMeta
+
     def __init__(self, train_method, encoder):
         self.train_method = train_method
         self.encoder = encoder
@@ -44,35 +47,34 @@ class RandomContextSelection():
         context = np.reshape(context, (1, self.encoder.n_contextual_factor))
         return self.train_method.predict_rating(sample[0], sample[1], self.encoder.predict(context))
 
+    @abc.abstractmethod
+    def choose_contexts(self, sample):
+        pass
 
-    def retrain(self):
-        if len(self.train_buffer) > 0:
-            train_set = np.vstack((self.train_set, self.train_buffer))
-            train_context = np.vstack((self.train_context, self.context_buffer))
-            #Free the buffers
-            self.train_buffer = []
-            self.context_buffer = []
-            #retrain the model
-            self.obtain_initial_train(train_set, train_context, self.n_context_choice)
 
+class RandomContextSelection(AbstractContextSelection):
+    def __init__(self, train_method, encoder):
+        AbstractContextSelection.__init__(self, train_method, encoder)
 
     def choose_contexts(self, sample):
         options = list(range(self.encoder.n_contextual_factor))
         return random.sample(options, self.n_context_choice)
 
-class AllContextSelection(RandomContextSelection):
+
+class AllContextSelection(AbstractContextSelection):
     def __init__(self, train_method, encoder):
-        RandomContextSelection.__init__(self, train_method, encoder)
+        AbstractContextSelection.__init__(self, train_method, encoder)
 
     def choose_contexts(self, sample):
         return np.array([i for i in range(self.encoder.n_contextual_factor)])
 
-class LargestDeviationContextSelection(RandomContextSelection):
+
+class LargestDeviationContextSelection(AbstractContextSelection):
     def __init__(self, train_method, encoder):
-        RandomContextSelection.__init__(self, train_method, encoder)
+        AbstractContextSelection.__init__(self, train_method, encoder)
 
     def obtain_initial_train(self, train_set, context, n_context_choice):
-        RandomContextSelection.obtain_initial_train(self, train_set, context, n_context_choice)
+        AbstractContextSelection.obtain_initial_train(self, train_set, context, n_context_choice)
         self.normalized_frequency = np.mean(self.encoder.predict(context), axis=0)
 
     def choose_contexts(self, sample):
@@ -142,7 +144,7 @@ class CramerLargestDeviation(LargestDeviationContextSelection):
             for past_choice in context_choice:
                 cram = self.cramer_matrix[possible_choices, past_choice]
                 context = contextual_factor_weight[0,possible_choices]
-                a = np.multiply(cram, context)
+                a = np.multiply(1.0 - cram, context)
                 score += a
             chosen_context = np.argmax(score)
             index_context = possible_choices[chosen_context]
