@@ -7,7 +7,7 @@ import mae
 from OneHotEncoder import OneHotEncoder
 from Selectors import LargestDeviationContextSelection, AllContextSelection,\
     CramerLargestDeviation, RandomContextSelection
-
+from scipy.stats import ttest_ind
 
 class TestFramework():
     def __init__(self, dataset, context, train_ratio=0.5, candidate_ratio=0.25, user_column = 0, item_column = 1):
@@ -46,8 +46,6 @@ class TestFramework():
             for selector_name, selector in context_selectors.items():
                 selector.obtain_initial_train(self.dataset[self.ids_train, :], self.context[self.ids_train, :], n_context_choice)
 
-                #print('inicial - ',complete_hash(selector.train_method))
-
                 arq.write(selector_name)
                 for candidate in self.ids_candidate:
                     chosen_contexts = selector.choose_contexts(self.dataset[candidate, :])
@@ -69,32 +67,39 @@ class TestFramework():
                 print(selector_name, actual_mae)
                 results_by_algorithm[selector_name].append(actual_mae)
 
-        values = [i for i in results_by_algorithm.values()]
-        array_values = np.array(values)
+        plot(results_by_algorithm)
 
-        mean = np.mean(array_values, axis=1)
 
-        labels = [i for i in results_by_algorithm.keys()]
-        labels = np.array(labels)
+def plot(results_by_algorithm, y_label = "MAE", title = "Results"):
+    if len(results_by_algorithm) == 1:
+        return
 
-        sorted_args = np.argsort(labels)
-        plt.plot(mean[sorted_args])
+    values = np.array([i for i in results_by_algorithm.values()])
+    mean_by_algorithm = np.mean(values, axis=1)
 
-        plt.ylabel("MAE")
-        plt.xticks(np.arange(len(labels)), labels[sorted_args])
-        plt.title("Results")
-        plt.show()
+    labels = np.array([i for i in results_by_algorithm.keys()])
+    sorted_label_ids = np.argsort(labels)
+
+    # Plot settings
+    worst_case = np.min(mean_by_algorithm) - np.std(mean_by_algorithm) # for comparative purposes
+    sequence = np.arange(len(labels))
+    plt.bar(sequence, mean_by_algorithm[sorted_label_ids] - worst_case, bottom = worst_case, align='center')
+    plt.ylabel(y_label)
+    plt.xticks(sequence, labels[sorted_label_ids])
+    plt.title(title)
+
+    plt.show()
 
 if __name__ == "__main__":
     import pandas as pd
-    random.seed(100)
+    random.seed(1000)
 
     #file = "/home/gabriel/Dropbox/Mestrado/Sistemas de Recomendação/Datasets/ldos_comoda.csv"
     file = "MRMR_data.csv"
 
     m = pd.read_csv(file)
-    n_context_choice = 3
-    n_repetitions = 10
+    n_context_choice = 2
+    n_repetitions = 1
     dataset = m.values[:, 0:3]
     context = m.values[:, 7: 19]
 
@@ -107,8 +112,9 @@ if __name__ == "__main__":
     largest_deviation = LargestDeviationContextSelection(svd, encoder)
     random_choice = RandomContextSelection(svd, encoder)
     baseline = AllContextSelection(svd, encoder)
+    cramer = CramerLargestDeviation(svd, encoder)
     selectors = {"Largest Deviation": largest_deviation, "Random": random_choice, "All Contexts": baseline,
-                 "Cramer Deviation": CramerLargestDeviation(svd, encoder)}
+                 "Cramer Deviation": cramer}
 
     tf = TestFramework(dataset, context)
     tf.test_procedure(n_context_choice, selectors, n_repetitions = n_repetitions)
