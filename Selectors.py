@@ -1,6 +1,5 @@
 __author__ = 'gabriel'
 import numpy as np
-import random
 import CramersV
 import abc
 
@@ -57,8 +56,7 @@ class RandomContextSelection(AbstractContextSelection):
         AbstractContextSelection.__init__(self, train_method, encoder)
 
     def choose_contexts(self, sample):
-        options = list(range(self.encoder.n_contextual_factor))
-        return random.sample(options, self.n_context_choice)
+        return self.train_method.random_state.randint(0, self.encoder.n_contextual_factor)
 
 
 class AllContextSelection(AbstractContextSelection):

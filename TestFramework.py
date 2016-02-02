@@ -1,5 +1,4 @@
 __author__ = 'gabriel'
-import random
 import numpy as np
 import ContextualSVD
 import matplotlib.pyplot as plt
@@ -9,14 +8,18 @@ from Selectors import LargestDeviationContextSelection, AllContextSelection,\
     CramerLargestDeviation, RandomContextSelection
 import copy
 import multiprocessing
+import random
+
 from scipy.stats import ttest_ind
 
 class TestFramework():
-    def __init__(self, dataset, context, train_ratio=0.5, candidate_ratio=0.25, user_column = 0, item_column = 1):
+    def __init__(self, dataset, context, train_ratio=0.5, candidate_ratio=0.25, user_column = 0, item_column = 1, seed = None):
         self.train_ratio = train_ratio
         self.candidate_ratio = candidate_ratio
         self.dataset = dataset
         self.context = context
+        self.seed = seed
+        random.seed(seed)
 
     def __prepare_holdout(self, n_sample):
         ids = list(range(n_sample))
@@ -66,6 +69,11 @@ class TestFramework():
             print(repetition + 1)
             self.__prepare_holdout(nSample)
 
+            #setup RNG
+            self.seed += 1
+            for selector in context_selectors.values():
+                selector.train_method.set_seed(self.seed)
+
             #parallel execution
             results = pool.map(self._test_selector, context_selectors.items())
 
@@ -99,14 +107,15 @@ def plot(results_by_algorithm, y_label = "MAE", title = "Results"):
 
 if __name__ == "__main__":
     import pandas as pd
-    random.seed(1000)
+    seed = 1000
 
     #file = "/home/gabriel/Dropbox/Mestrado/Sistemas de Recomendação/Datasets/ldos_comoda.csv"
     file = "MRMR_data.csv"
 
     m = pd.read_csv(file)
     n_context_choice = 3
-    n_repetitions = 5
+    n_repetitions = 2
+
     dataset = m.values[:, 0:3]
     context = m.values[:, 7: 19]
 
@@ -124,5 +133,5 @@ if __name__ == "__main__":
     selectors = {"Largest Deviation": largest_deviation, "Random": random_choice, "All Contexts": baseline,
                  "Cramer Deviation": cramer}
 
-    tf = TestFramework(dataset, context)
+    tf = TestFramework(dataset, context, seed=seed)
     tf.test_procedure(n_context_choice, selectors, n_repetitions = n_repetitions)

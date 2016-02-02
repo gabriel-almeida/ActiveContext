@@ -4,6 +4,7 @@ import random
 import matplotlib.pyplot as plt
 import hashlib
 
+
 class PrintEpoch():
     def __init__(self):
         self.i = 0
@@ -25,7 +26,10 @@ class ContextualSVD():
         self.regularization_coeficient = regularization_coeficient
         self.k = k
         self.mode = mode
+        self.random_state = np.random.RandomState()
 
+    def set_seed(self, random_seed):
+        self.random_state = np.random.RandomState(random_seed)
 
     def train(self, dataset, context, callback = None, callback_interval=10):
 
@@ -45,7 +49,6 @@ class ContextualSVD():
 
         train_order = [i for i in range(n_dataset)]
         for step_count in range(self.max_steps):
-            # random.shuffle(train_order)
             for i in train_order:
                 self._train_step(dataset[i, 0], dataset[i, 1], dataset[i, 2], context[i, :])
 
@@ -64,8 +67,8 @@ class ContextualSVD():
         self._item_mean(dataset)
         self._user_offset(dataset)
 
-        self.item_feature = np.random.random((self.n_item, self.n_latent_features)) * 0.1
-        self.user_feature = np.random.random((self.n_user, self.n_latent_features)) * 0.1
+        self.item_feature = self.random_state.rand(self.n_item, self.n_latent_features) * 0.1
+        self.user_feature = self.random_state.rand(self.n_user, self.n_latent_features) * 0.1
 
         if self.mode == 'item':
             self.item_context_matrix = np.zeros((self.n_item, self.n_context))
