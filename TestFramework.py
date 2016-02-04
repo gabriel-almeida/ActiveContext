@@ -1,4 +1,3 @@
-__author__ = 'gabriel'
 import numpy as np
 import ContextualSVD
 import matplotlib.pyplot as plt
@@ -9,8 +8,8 @@ from Selectors import LargestDeviationContextSelection, AllContextSelection,\
 import copy
 import multiprocessing
 import random
-
-from scipy.stats import ttest_ind
+import pprint
+from scipy.stats import t
 
 class TestFramework():
     def __init__(self, dataset, context, train_ratio=0.5, candidate_ratio=0.25, user_column = 0, item_column = 1, seed = None):
@@ -36,20 +35,22 @@ class TestFramework():
         selector_name = selector_item[0]
 
         selector.obtain_initial_train(self.dataset[self.ids_train, :], self.context[self.ids_train, :], self.n_context_choice)
+
+        all_chosen_context = []
         for candidate in self.ids_candidate:
             chosen_contexts = selector.choose_contexts(self.dataset[candidate, :])
+            all_chosen_context.append(chosen_contexts) # debug
             selector.obtain_contextual_train_sample(self.dataset[candidate, :], self.context[candidate, chosen_contexts], chosen_contexts)
 
         responses = []
         for test in self.ids_test:
             # chosen_contexts = selector.choose_contexts(self.dataset[test, :])
-            # prediction = selector.obtain_contextual_test_sample(self.dataset[test, :], self.context[test, chosen_contexts])
             prediction = selector.obtain_contextual_test_sample(self.dataset[test, :], self.context[test, :])
             responses.append(prediction)
 
         y_hat = np.array(responses)
         actual_mae = mae.MAE().calculate(self.dataset[self.ids_test, :], y_hat)
-        return (selector_name, actual_mae)
+        return (selector_name, actual_mae, all_chosen_context)
 
     def test_procedure(self, n_context_choice, context_selectors, n_repetitions=20):
         (nSample, nFeature) = np.shape(self.dataset)
@@ -69,51 +70,63 @@ class TestFramework():
             print(repetition + 1)
             self.__prepare_holdout(nSample)
 
-            #setup RNG
-            self.seed += 1
+            # setup RNG
+            self.seed += 91
             for selector in context_selectors.values():
                 selector.train_method.set_seed(self.seed)
 
-            #parallel execution
+            # parallel execution
             results = pool.map(self._test_selector, context_selectors.items())
 
-            #result gathering
-            for (selector_name, actual_mae) in results:
+            # result gathering
+            for current_result in results:
+                selector_name, actual_mae, choosen_contexts = current_result[0], current_result[1], current_result[2]
                 print(selector_name, actual_mae)
                 results_by_algorithm[selector_name].append(actual_mae)
 
+        pprint.pprint(results_by_algorithm)
+
+        # plots the iteration result
         plot(results_by_algorithm)
 
 
-def plot(results_by_algorithm, y_label = "MAE", title = "Results"):
+def plot(results_by_algorithm, y_label="MAE", title="Results"):
     if len(results_by_algorithm) == 1:
         return
+    plt.clf()
 
-    values = np.array([i for i in results_by_algorithm.values()])
-    mean_by_algorithm = np.mean(values, axis=1)
-
+    # sort the dict keys
     labels = np.array([i for i in results_by_algorithm.keys()])
     sorted_label_ids = np.argsort(labels)
+
+    # statistics
+    values = np.array([i for i in results_by_algorithm.values()])
+    mean_by_algorithm = np.mean(values, axis=1)[sorted_label_ids]
+    std_by_algorithm = np.std(values, axis=1)[sorted_label_ids]
+
+    # t-student
+    degrees_of_freedom = 29
+    interval = t.interval(0.95, degrees_of_freedom, loc=mean_by_algorithm, scale=std_by_algorithm)
+    print(interval)
 
     # Plot settings
     worst_case = np.min(mean_by_algorithm) - np.std(mean_by_algorithm) # for comparative purposes
     sequence = np.arange(len(labels))
-    plt.bar(sequence, mean_by_algorithm[sorted_label_ids] - worst_case, bottom = worst_case, align='center')
+    plt.bar(sequence, mean_by_algorithm - worst_case, bottom=worst_case, align='center', ecolor=(1, 0, 0),
+            yerr=(mean_by_algorithm - interval[0], interval[1] - mean_by_algorithm))
     plt.ylabel(y_label)
     plt.xticks(sequence, labels[sorted_label_ids])
     plt.title(title)
-
     plt.show()
 
 if __name__ == "__main__":
     import pandas as pd
-    seed = 1000
+    seed = 66666
 
-    #file = "/home/gabriel/Dropbox/Mestrado/Sistemas de Recomendação/Datasets/ldos_comoda.csv"
     file = "MRMR_data.csv"
 
     m = pd.read_csv(file)
-    n_context_choice = 3
+    n_context_choice = 2
     n_repetitions = 2
 
     dataset = m.values[:, 0:3]
@@ -134,4 +147,4 @@ if __name__ == "__main__":
                  "Cramer Deviation": cramer}
 
     tf = TestFramework(dataset, context, seed=seed)
-    tf.test_procedure(n_context_choice, selectors, n_repetitions = n_repetitions)
+    tf.test_procedure(n_context_choice, selectors, n_repetitions=n_repetitions)
