@@ -51,36 +51,48 @@ class TestFramework():
         actual_mae = mae.MAE().calculate(self.dataset[self.ids_test, :], y_hat)
         return (selector_name, actual_mae)
 
-    def test_procedure(self, n_context_choice, context_selectors, n_repetitions=20):
+    def test_procedure(self, list_n_context_choice, context_selectors, n_repetitions=20, results_file = "results.tsv"):
         (nSample, nFeature) = np.shape(self.dataset)
-        self.n_context_choice = n_context_choice
 
         #cast single object to list
         if type(context_selectors) is not dict:
             context_selectors = {"default": context_selectors}
+        if type(list_n_context_choice) is not list:
+            list_n_context_choice = [list_n_context_choice]
 
-        #initialize statistics collection
-        results_by_algorithm = {}
-        for name in context_selectors.keys():
-            results_by_algorithm[name] = []
+        file = open(results_file, 'w')
+        file.write("\t".join(["number of contexts","algorithm", "results"]))
 
         pool = multiprocessing.Pool(len(context_selectors))
-        for repetition in range(n_repetitions):
-            print(repetition + 1)
-            self.__prepare_holdout(nSample)
+        for number_of_contexts in list_n_context_choice:
+            self.n_context_choice = number_of_contexts
 
-            #setup RNG
-            self.seed += 1
-            for selector in context_selectors.values():
-                selector.train_method.set_seed(self.seed)
+            #initialize statistics collection
+            results_by_algorithm = {}
+            for name in context_selectors.keys():
+                results_by_algorithm[name] = []
 
-            #parallel execution
-            results = pool.map(self._test_selector, context_selectors.items())
+            #experiment
+            for repetition in range(n_repetitions):
+                print((repetition + 1), "repetition with", number_of_contexts, "contexts")
+                self.__prepare_holdout(nSample)
 
-            #result gathering
-            for (selector_name, actual_mae) in results:
-                print(selector_name, actual_mae)
-                results_by_algorithm[selector_name].append(actual_mae)
+                #setup RNG
+                self.seed += 1
+                for selector in context_selectors.values():
+                    selector.train_method.set_seed(self.seed)
+
+                #parallel execution
+                results = pool.map(self._test_selector, context_selectors.items())
+
+                #result gathering
+                for (selector_name, actual_mae) in results:
+                    print(selector_name, actual_mae)
+                    results_by_algorithm[selector_name].append(actual_mae)
+
+            for (key, value) in results_by_algorithm.items():
+                file.write('\n' + str(number_of_contexts) +  '\t'  + key + '\t'+ "\t".join([ str(i) for i in value]))
+            file.flush()
 
         plot(results_by_algorithm)
 
@@ -113,8 +125,8 @@ if __name__ == "__main__":
     file = "MRMR_data.csv"
 
     m = pd.read_csv(file)
-    n_context_choice = 3
-    n_repetitions = 2
+    n_context_choice = [1, 2, 3, 4]
+    n_repetitions = 30
 
     dataset = m.values[:, 0:3]
     context = m.values[:, 7: 19]
@@ -122,7 +134,7 @@ if __name__ == "__main__":
     n_user = np.max(dataset[:, 0]) + 1
     n_item = np.max(dataset[:, 1]) + 1
 
-    svd = ContextualSVD.ContextualSVD(n_user, n_item, max_steps=100, n_latent_features=20, mode='item')
+    svd = ContextualSVD.ContextualSVD(n_user, n_item, max_steps=200, n_latent_features=20, mode='item')
     encoder = OneHotEncoder(context, na_value=-1)
 
     largest_deviation = LargestDeviationContextSelection(copy.deepcopy(svd), encoder)
