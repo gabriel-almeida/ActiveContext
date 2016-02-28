@@ -131,7 +131,7 @@ class CramerLargestDeviation(LargestDeviationContextSelection):
 
         contextual_condition_weight = np.multiply(self.normalized_frequency, deviation)
 
-        contextual_factor_weight = np.zeros((1, n_contextual_factors))
+        contextual_factor_weight = np.zeros((1, n_contextual_factors)) + 0.1
 
         aggregated_deviation = np.zeros((1, n_contextual_factors))
         aggregated_frequency = np.zeros((1, n_contextual_factors))
