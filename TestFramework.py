@@ -9,19 +9,19 @@ from Selectors import LargestDeviationContextSelection, AllContextSelection,\
 import copy
 import multiprocessing
 import random
+import json
 
 from scipy.stats import ttest_ind
 
 class TestFramework():
-    def __init__(self, dataset, context, train_ratio=0.5, candidate_ratio=0.25, user_column = 0, item_column = 1, seed = None):
+    def __init__(self, dataset, context, train_ratio=0.5, candidate_ratio=0.25, user_column = 0, item_column = 1):
         self.train_ratio = train_ratio
         self.candidate_ratio = candidate_ratio
         self.dataset = dataset
         self.context = context
-        self.seed = seed
-        random.seed(seed)
 
-    def __prepare_holdout(self, n_sample):
+    def __prepare_holdout(self, n_sample, seed):
+        random.seed(seed)
         ids = list(range(n_sample))
         random.shuffle(ids)
         train_split = round(self.train_ratio * n_sample)
@@ -42,8 +42,6 @@ class TestFramework():
 
         responses = []
         for test in self.ids_test:
-            # chosen_contexts = selector.choose_contexts(self.dataset[test, :])
-            # prediction = selector.obtain_contextual_test_sample(self.dataset[test, :], self.context[test, chosen_contexts])
             prediction = selector.obtain_contextual_test_sample(self.dataset[test, :], self.context[test, :])
             responses.append(prediction)
 
@@ -51,7 +49,7 @@ class TestFramework():
         actual_mae = mae.MAE().calculate(self.dataset[self.ids_test, :], y_hat)
         return (selector_name, actual_mae)
 
-    def test_procedure(self, list_n_context_choice, context_selectors, n_repetitions=20, results_file = "results.tsv"):
+    def test_procedure(self, list_n_context_choice, context_selectors, n_repetitions=20, results_file = "results-test.json", seed=None):
         (nSample, nFeature) = np.shape(self.dataset)
 
         #cast single object to list
@@ -60,39 +58,40 @@ class TestFramework():
         if type(list_n_context_choice) is not list:
             list_n_context_choice = [list_n_context_choice]
 
-        file = open(results_file, 'w')
-        file.write("\t".join(["number of contexts","algorithm", "results"]))
+        #initialize statistics collection
+        results_by_algorithm = {}
+        for n_context_choice in list_n_context_choice:
+            results_by_algorithm[n_context_choice] = {}
+            for name in context_selectors.keys():
+                results_by_algorithm[n_context_choice][name] = []
 
         pool = multiprocessing.Pool(len(context_selectors))
-        for number_of_contexts in list_n_context_choice:
-            self.n_context_choice = number_of_contexts
+        for repetition in range(n_repetitions):
+            #experiments
+            for n_context_choice  in list_n_context_choice:
+                print((repetition + 1), "repetition with", n_context_choice, "contexts")
 
-            #initialize statistics collection
-            results_by_algorithm = {}
-            for name in context_selectors.keys():
-                results_by_algorithm[name] = []
-
-            #experiment
-            for repetition in range(n_repetitions):
-                print((repetition + 1), "repetition with", number_of_contexts, "contexts")
-                self.__prepare_holdout(nSample)
-
-                #setup RNG
-                self.seed += 1
+                #set up rng for the current run
+                self.__prepare_holdout(nSample, seed)
                 for selector in context_selectors.values():
-                    selector.train_method.set_seed(self.seed)
+                    selector.train_method.set_seed(seed)
 
                 #parallel execution
+                self.n_context_choice = n_context_choice
                 results = pool.map(self._test_selector, context_selectors.items())
 
                 #result gathering
                 for (selector_name, actual_mae) in results:
                     print(selector_name, actual_mae)
-                    results_by_algorithm[selector_name].append(actual_mae)
+                    results_by_algorithm[n_context_choice][selector_name].append(actual_mae)
 
-            for (key, value) in results_by_algorithm.items():
-                file.write('\n' + str(number_of_contexts) +  '\t'  + key + '\t'+ "\t".join([ str(i) for i in value]))
-            file.flush()
+                #save current results
+                with open(results_file, 'w') as f:
+                    f.write(json.dumps(results_by_algorithm))
+
+            #setup RNG for the next iteration
+            if seed is not None:
+                seed += 17
 
         plot(results_by_algorithm)
 
@@ -119,13 +118,13 @@ def plot(results_by_algorithm, y_label = "MAE", title = "Results"):
 
 if __name__ == "__main__":
     import pandas as pd
-    seed = 1000
+    seed = 666
 
     #file = "/home/gabriel/Dropbox/Mestrado/Sistemas de Recomendação/Datasets/ldos_comoda.csv"
     file = "MRMR_data.csv"
 
     m = pd.read_csv(file)
-    n_context_choice = [1, 2, 3, 4]
+    n_context_choice = [2, 3, 4, 5]
     n_repetitions = 30
 
     dataset = m.values[:, 0:3]
@@ -142,8 +141,11 @@ if __name__ == "__main__":
     baseline = AllContextSelection(copy.deepcopy(svd), encoder)
     cramer = CramerLargestDeviation(copy.deepcopy(svd), encoder)
 
-    selectors = {"Largest Deviation": largest_deviation, "Random": random_choice, "All Contexts": baseline,
-                 "Cramer Deviation": cramer}
+    #selectors = {"Largest Deviation": largest_deviation, "Random": random_choice, "All Contexts": baseline,
+    #             "Cramer Deviation": cramer}
+    selectors = {"Cramer Deviation": cramer, "Largest Deviation": largest_deviation}
 
-    tf = TestFramework(dataset, context, seed=seed)
-    tf.test_procedure(n_context_choice, selectors, n_repetitions = n_repetitions)
+    #selectors = {"Random": random_choice}
+
+    tf = TestFramework(dataset, context)
+    tf.test_procedure(n_context_choice, selectors, n_repetitions = n_repetitions, seed = seed)

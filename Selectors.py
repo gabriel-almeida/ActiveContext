@@ -56,7 +56,9 @@ class RandomContextSelection(AbstractContextSelection):
         AbstractContextSelection.__init__(self, train_method, encoder)
 
     def choose_contexts(self, sample):
-        return self.train_method.random_state.randint(0, self.encoder.n_contextual_factor)
+        choices = list(range(self.encoder.n_contextual_factor))
+        self.train_method.random_state.shuffle(choices)
+        return choices[:self.n_context_choice]
 
 
 class AllContextSelection(AbstractContextSelection):
@@ -64,7 +66,7 @@ class AllContextSelection(AbstractContextSelection):
         AbstractContextSelection.__init__(self, train_method, encoder)
 
     def choose_contexts(self, sample):
-        return np.array([i for i in range(self.encoder.n_contextual_factor)])
+        return np.array(list(range(self.encoder.n_contextual_factor)))
 
 
 class LargestDeviationContextSelection(AbstractContextSelection):
@@ -131,27 +133,21 @@ class CramerLargestDeviation(LargestDeviationContextSelection):
 
         contextual_condition_weight = np.multiply(self.normalized_frequency, deviation)
 
-        contextual_factor_weight = np.zeros((1, n_contextual_factors)) + 0.1
-
-        aggregated_deviation = np.zeros((1, n_contextual_factors))
-        aggregated_frequency = np.zeros((1, n_contextual_factors))
-
+        # aggregate contextual conditions into contextual factors
+        contextual_factor_weight = np.zeros((1, n_contextual_factors))
         context_index = self.encoder.contextual_factor_index.tolist() + [self.encoder.n_contextual_condition]
-
         for i in range(n_contextual_factors - 1):
             contextual_factor_weight[0, i] = np.mean(contextual_condition_weight[context_index[i]:context_index[i+1]])
 
-            aggregated_deviation[0, i] = np.mean(deviation[context_index[i]:context_index[i+1]])
-            aggregated_frequency[0, i] = np.mean(self.normalized_frequency[context_index[i]:context_index[i+1]])
-
+        # first choice is equals to largest deviation
         context_choice = [np.argmax(contextual_factor_weight)]
-        possible_choices = [i for i in range(n_contextual_factors) if i not in context_choice]
 
+        possible_choices = [i for i in range(n_contextual_factors) if i not in context_choice]
         for i in range(self.n_context_choice - 1):
             score = np.ones(len(possible_choices))
             for past_choice in context_choice:
                 cram = self.cramer_matrix[possible_choices, past_choice]
-                context = contextual_factor_weight[0,possible_choices]
+                context = contextual_factor_weight[0,possible_choices] + 0.01
                 a = np.divide(context, cram)
                 score *= a
             chosen_context = np.argmax(score)
@@ -161,5 +157,5 @@ class CramerLargestDeviation(LargestDeviationContextSelection):
 
 
         #get the last n elements
-        context_choice = np.argsort(contextual_factor_weight)[0, n_contextual_factors - self.n_context_choice:]
+        #context_choice = np.argsort(contextual_factor_weight)[0, n_contextual_factors - self.n_context_choice:]
         return context_choice
