@@ -93,10 +93,10 @@ class TestFramework():
             if seed is not None:
                 seed += 17
 
-        plot(results_by_algorithm)
+        plot(results_by_algorithm, context_selectors.keys(), list_n_context_choice)
 
 
-def plot(results_by_algorithm, y_label = "MAE", title = "Results"):
+'''def plot(results_by_algorithm, y_label = "MAE", title = "Results"):
     if len(results_by_algorithm) == 1:
         return
 
@@ -115,17 +115,61 @@ def plot(results_by_algorithm, y_label = "MAE", title = "Results"):
     plt.title(title)
 
     plt.show()
+'''
+
+def plot(dictionary, algo_names, possible_contexts):
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as mpatches
+
+
+    y_min = 0.75
+    x_individual = 1
+    x_group = 2
+
+    y_axis = []
+    x_axis = []
+    actual_x = 0
+    centered_xlabel = [ ((x_individual)*len(algo_names) - 1)/2.0 + (i-1)*(x_group +( x_individual*len(algo_names))) for i in range(1,5)]
+
+    for n_context in possible_contexts:
+        results_by_algo = dictionary[n_context]
+        for algo in algo_names:
+            y_axis  += [np.average(results_by_algo[algo]) - y_min]
+            x_axis += [actual_x]
+
+            actual_x += x_individual
+        actual_x += x_group
+
+    plt.bar(x_axis, y_axis, bottom=y_min,  align='center', color='krbc')
+
+    legend_meaning = [
+        #mpatches.Patch(color='k', label='All Contexts'),
+        mpatches.Patch(color='r', label='Cramer Deviation'),
+        mpatches.Patch(color='b', label='Largest Deviation'),
+        #mpatches.Patch(color='c', label='Random'),
+    ]
+    plt.legend(handles=legend_meaning)
+
+    plt.title('Results')
+    plt.xticks(centered_xlabel, possible_contexts )
+    plt.xlabel('Numer of contexts')
+    plt.ylabel('MAE')
+    plt.show()
+
 
 if __name__ == "__main__":
     import pandas as pd
-    seed = 666
+    import time
+    milis = int(round(time.time() ))
+    seed = milis
+    print('seed= ', seed)
 
     #file = "/home/gabriel/Dropbox/Mestrado/Sistemas de Recomendação/Datasets/ldos_comoda.csv"
     file = "MRMR_data.csv"
 
     m = pd.read_csv(file)
-    n_context_choice = [2, 3, 4, 5]
-    n_repetitions = 30
+    n_context_choice = [3]
+    n_repetitions = 10
 
     dataset = m.values[:, 0:3]
     context = m.values[:, 7: 19]
@@ -133,7 +177,7 @@ if __name__ == "__main__":
     n_user = np.max(dataset[:, 0]) + 1
     n_item = np.max(dataset[:, 1]) + 1
 
-    svd = ContextualSVD.ContextualSVD(n_user, n_item, max_steps=200, n_latent_features=20, mode='item')
+    svd = ContextualSVD.ContextualSVD(n_user, n_item, max_steps=100, n_latent_features=20, mode='item')
     encoder = OneHotEncoder(context, na_value=-1)
 
     largest_deviation = LargestDeviationContextSelection(copy.deepcopy(svd), encoder)
