@@ -96,7 +96,7 @@ class LargestDeviationContextSelection(AbstractContextSelection):
         for i in range(n_contextual_factors - 1):
             contextual_factor_weight[0, i] = np.mean(contextual_condition_weight[context_index[i]:context_index[i+1]])
 
-        #get the last n elements
+        # get the last n elements
         context_choice = np.argsort(contextual_factor_weight)[0, n_contextual_factors - self.n_context_choice:]
         return context_choice
 
@@ -140,23 +140,28 @@ class CramerLargestDeviation(LargestDeviationContextSelection):
             contextual_factor_weight[0, i] = np.mean(contextual_condition_weight[context_index[i]:context_index[i+1]])
 
         # first choice is equals to largest deviation
-        context_choice = [np.argmax(contextual_factor_weight)]
+        context_choice = [np.argsort(contextual_factor_weight)[0, - 1]]
+
+        if self.n_context_choice == 1:
+            return context_choice
 
         possible_choices = [i for i in range(n_contextual_factors) if i not in context_choice]
         for i in range(self.n_context_choice - 1):
 
             cram = np.zeros(np.shape(possible_choices))
             for c in context_choice:
-                cram =  cram + self.cramer_matrix[possible_choices, c]
+                cram = cram + self.cramer_matrix[possible_choices, c]
             norm_cram = cram/np.sum(cram)
 
-            context = contextual_factor_weight[0,possible_choices] + 0.001
-            norm_context = context #/ np.sum(context, axis=0)
+            context = contextual_factor_weight[0, possible_choices] + 0.001
+            norm_context = context # / np.sum(context, axis=0)
             #a = np.divide(context, cram)
             #a = np.divide(norm_context, norm_cram)
-            score  = norm_context * norm_cram
+            score = norm_context / norm_cram
 
             chosen_context = np.argmax(score)
+            #chosen_context = self.train_method.random_state.choice(list(range(len(possible_choices))), p=score/np.sum(score))
+
             index_context = possible_choices[chosen_context]
             context_choice.append(index_context)
             possible_choices.remove(index_context)
