@@ -81,8 +81,16 @@ class TestFramework():
                 results = pool.map(self._test_selector, context_selectors.items())
 
                 #result gathering
-                for (selector_name, actual_mae) in results:
-                    print(selector_name, actual_mae)
+                order = np.argsort([ r[1] for r in results])
+                for i in range(len(results)):
+                    #performace visualization
+                    selector_name, actual_mae = results[order[i]]
+                    if i == 0:
+                        dif = 0
+                    else:
+                        dif = results[order[i-1]][1] - actual_mae
+                    print(selector_name, actual_mae, "(",dif, ")")
+
                     results_by_algorithm[n_context_choice][selector_name].append(actual_mae)
 
                 #save current results
@@ -117,10 +125,15 @@ class TestFramework():
     plt.show()
 '''
 
-def plot(dictionary, algo_names, possible_contexts):
+def plot(dictionary):
     import matplotlib.pyplot as plt
     import matplotlib.patches as mpatches
 
+    possible_contexts = list(dictionary.keys())
+    possible_contexts.sort()
+
+    algo_names = list(dictionary[possible_contexts[0]].keys())
+    algo_names.sort()
 
     y_min = 0.75
     x_individual = 1

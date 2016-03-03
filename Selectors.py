@@ -144,17 +144,18 @@ class CramerLargestDeviation(LargestDeviationContextSelection):
 
         possible_choices = [i for i in range(n_contextual_factors) if i not in context_choice]
         for i in range(self.n_context_choice - 1):
-            score = np.ones(len(possible_choices))
-            for past_choice in context_choice:
-                cram = self.cramer_matrix[possible_choices, past_choice]
-                norm_cram = cram / np.sum(cram, axis=0)
 
-                context = contextual_factor_weight[0,possible_choices] + 0.001
-                norm_context = context / np.sum(context, axis=0)
-                #a = np.divide(context, cram)
-                #a = np.divide(norm_context, norm_cram)
-                a = norm_context / np.log(norm_cram)
-                score += a
+            cram = np.zeros(np.shape(possible_choices))
+            for c in context_choice:
+                cram =  cram + self.cramer_matrix[possible_choices, c]
+            norm_cram = cram/np.sum(cram)
+
+            context = contextual_factor_weight[0,possible_choices] + 0.001
+            norm_context = context #/ np.sum(context, axis=0)
+            #a = np.divide(context, cram)
+            #a = np.divide(norm_context, norm_cram)
+            score  = norm_context * norm_cram
+
             chosen_context = np.argmax(score)
             index_context = possible_choices[chosen_context]
             context_choice.append(index_context)
