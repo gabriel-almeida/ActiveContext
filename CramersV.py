@@ -1,9 +1,28 @@
 import numpy as np
-import os
 import csv
 import pandas as pd
 
+
 def cramersV(x, y):
+    """
+    Calc Cramer's V.
+
+    Parameters
+    ----------
+    x : {numpy.ndarray, pandas.Series}
+    y : {numpy.ndarray, pandas.Series}
+    """
+    table = np.array(pd.crosstab(x, y)).astype(np.float32)
+    n = table.sum()
+    colsum = table.sum(axis=0)
+    rowsum = table.sum(axis=1)
+    expect = np.outer(rowsum, colsum) / n
+    chisq = np.sum((table - expect) ** 2 / expect)
+
+    return np.sqrt(chisq / (n * (np.min(table.shape) - 1)))
+
+
+def cramersV_tilde(x, y):
     """
     Calc Cramer's V.
 
@@ -24,9 +43,6 @@ def cramersV(x, y):
     phi_tilde = np.max((0, chisq/n - (k - 1)*(r - 1)/(n - 1)))
 
     return np.sqrt(phi_tilde / (np.min(table.shape) - 1))
-
-    #return np.sqrt(chisq / (n * (np.min(table.shape) - 1)))
-
 
 
 if __name__ == "__main__":

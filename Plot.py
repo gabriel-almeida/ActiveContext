@@ -18,7 +18,7 @@ def plot(results, base_algorithm='Cramer Deviation', ttest_p=0.05):
     y_min = np.min(avg) - std  # calculate the min average
     x_individual_step = 1
     x_group_step = 2
-    color_sequence = 'krbcy'
+    color_sequence = 'krbcymw'
 
     y_axis = []
     x_axis = []
@@ -51,7 +51,7 @@ def plot(results, base_algorithm='Cramer Deviation', ttest_p=0.05):
 
     legend_meaning = [mpatches.Patch(color=color_sequence[i % len(color_sequence)], label=algo_names[i])
                       for i in range(n_algorithms)]
-    plt.legend(handles=legend_meaning)
+    plt.legend(handles=legend_meaning, loc=0, fontsize=9)
 
     plt.title('Results')
     plt.xticks(centered_x_label, possible_contexts)
@@ -61,5 +61,5 @@ def plot(results, base_algorithm='Cramer Deviation', ttest_p=0.05):
 
 if __name__ == "__main__":
     import json
-    results = json.loads(open('results-test.json').read())
+    results = json.loads(open('results-cramer-tilde.json').readline())
     plot(results)

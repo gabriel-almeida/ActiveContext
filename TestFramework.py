@@ -3,7 +3,8 @@ import ContextualSVD
 import mae
 from OneHotEncoder import OneHotEncoder
 from Selectors import LargestDeviationContextSelection, AllContextSelection,\
-    CramerLargestDeviation, RandomContextSelection
+    CramerLargestDeviation, RandomContextSelection, LogCramerLargestDeviation, \
+    TildeCramerLargestDeviation, LogTildeCramerLargestDeviation
 import copy
 import multiprocessing
 import random
@@ -115,7 +116,7 @@ if __name__ == "__main__":
     file = "MRMR_data.csv"
 
     m = pd.read_csv(file)
-    n_context_choice = [2, 3, 4]
+    n_context_choice = [1, 2, 3, 4, 5, 6]
     n_repetitions = 30
 
     dataset = m.values[:, 0:3]
@@ -131,9 +132,13 @@ if __name__ == "__main__":
     random_choice = RandomContextSelection(copy.deepcopy(svd), encoder)
     baseline = AllContextSelection(copy.deepcopy(svd), encoder)
     cramer = CramerLargestDeviation(copy.deepcopy(svd), encoder)
+    log_cramer = LogCramerLargestDeviation(copy.deepcopy(svd), encoder)
+    tilde_cramer = TildeCramerLargestDeviation(copy.deepcopy(svd), encoder)
+    log_tilde_cramer = LogTildeCramerLargestDeviation(copy.deepcopy(svd), encoder)
 
     selectors = {"Largest Deviation": largest_deviation, "Random": random_choice, "All Contexts": baseline,
-                 "Cramer Deviation": cramer}
+                 "Cramer Deviation": cramer, "Log Cramer": log_cramer, "Tilde Cramer": tilde_cramer,
+                 "Log Tilde Cramer": log_tilde_cramer}
 
     tf = TestFramework(dataset, context)
     tf.test_procedure(n_context_choice, selectors, n_repetitions = n_repetitions, seed = seed, results_file="results-cramer-tilde.json")
