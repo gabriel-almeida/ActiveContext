@@ -18,7 +18,16 @@ def cramersV(x, y):
     rowsum = table.sum(axis=1)
     expect = np.outer(rowsum, colsum) / n
     chisq = np.sum((table - expect) ** 2 / expect)
-    return np.sqrt(chisq / (n * (np.min(table.shape) - 1)))
+
+    k = table.shape[0]
+    r = table.shape[1]
+    phi_tilde = np.max((0, chisq/n - (k - 1)*(r - 1)/(n - 1)))
+
+    return np.sqrt(phi_tilde / (np.min(table.shape) - 1))
+
+    #return np.sqrt(chisq / (n * (np.min(table.shape) - 1)))
+
+
 
 if __name__ == "__main__":
     # Carregando os dados

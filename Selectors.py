@@ -154,7 +154,7 @@ class CramerLargestDeviation(LargestDeviationContextSelection):
             norm_cram = cram/np.sum(cram)
 
             context = contextual_factor_weight[0, possible_choices] + 0.001
-            norm_context = context # / np.sum(context, axis=0)
+            norm_context = context / np.sum(context, axis=0)
             #a = np.divide(context, cram)
             #a = np.divide(norm_context, norm_cram)
             score = norm_context / norm_cram

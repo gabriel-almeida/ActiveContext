@@ -109,13 +109,13 @@ if __name__ == "__main__":
     import pandas as pd
     import time
     milis = int(round(time.time()))
-    seed = 1457032230
-    print('seed= ', seed)
+    seed = milis#1457032230
+    print('seed=', seed)
 
     file = "MRMR_data.csv"
 
     m = pd.read_csv(file)
-    n_context_choice = [1, 2, 3, 4]
+    n_context_choice = [2, 3, 4]
     n_repetitions = 30
 
     dataset = m.values[:, 0:3]
@@ -124,7 +124,7 @@ if __name__ == "__main__":
     n_user = np.max(dataset[:, 0]) + 1
     n_item = np.max(dataset[:, 1]) + 1
 
-    svd = ContextualSVD.ContextualSVD(n_user, n_item, max_steps=100, n_latent_features=20, mode='item')
+    svd = ContextualSVD.ContextualSVD(n_user, n_item, max_steps=200, n_latent_features=30, mode='item')
     encoder = OneHotEncoder(context, na_value=-1)
 
     largest_deviation = LargestDeviationContextSelection(copy.deepcopy(svd), encoder)
@@ -136,4 +136,4 @@ if __name__ == "__main__":
                  "Cramer Deviation": cramer}
 
     tf = TestFramework(dataset, context)
-    tf.test_procedure(n_context_choice, selectors, n_repetitions = n_repetitions, seed = seed)
+    tf.test_procedure(n_context_choice, selectors, n_repetitions = n_repetitions, seed = seed, results_file="results-cramer-tilde.json")
