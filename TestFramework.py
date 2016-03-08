@@ -2,9 +2,7 @@ import numpy as np
 import ContextualSVD
 import mae
 from OneHotEncoder import OneHotEncoder
-from Selectors import LargestDeviationContextSelection, AllContextSelection,\
-    CramerLargestDeviation, RandomContextSelection, LogCramerLargestDeviation, \
-    TildeCramerLargestDeviation, LogTildeCramerLargestDeviation
+from Selectors import *
 import copy
 import multiprocessing
 import random
@@ -116,8 +114,8 @@ if __name__ == "__main__":
     file = "MRMR_data.csv"
 
     m = pd.read_csv(file)
-    n_context_choice = [1, 2, 3, 4, 5, 6]
-    n_repetitions = 30
+    n_context_choice = [1, 2, 3, 4, 5, 6, 7]
+    n_repetitions = 50
 
     dataset = m.values[:, 0:3]
     context = m.values[:, 7: 19]
@@ -131,14 +129,27 @@ if __name__ == "__main__":
     largest_deviation = LargestDeviationContextSelection(copy.deepcopy(svd), encoder)
     random_choice = RandomContextSelection(copy.deepcopy(svd), encoder)
     baseline = AllContextSelection(copy.deepcopy(svd), encoder)
-    cramer = CramerLargestDeviation(copy.deepcopy(svd), encoder)
-    log_cramer = LogCramerLargestDeviation(copy.deepcopy(svd), encoder)
-    tilde_cramer = TildeCramerLargestDeviation(copy.deepcopy(svd), encoder)
-    log_tilde_cramer = LogTildeCramerLargestDeviation(copy.deepcopy(svd), encoder)
 
-    selectors = {"Largest Deviation": largest_deviation, "Random": random_choice, "All Contexts": baseline,
-                 "Cramer Deviation": cramer, "Log Cramer": log_cramer, "Tilde Cramer": tilde_cramer,
-                 "Log Tilde Cramer": log_tilde_cramer}
+    divided_cramer = CramerLargestDeviation(copy.deepcopy(svd), encoder)
+    times_cramer = CramerTimesLargestDeviation(copy.deepcopy(svd), encoder)
+
+    log_divided_cramer = LogCramerDividedLargestDeviation(copy.deepcopy(svd), encoder)
+    log_times_cramer = LogCramerTimesLargestDeviation(copy.deepcopy(svd), encoder)
+
+    divided_tilde_cramer = TildeCramerDividedLargestDeviation(copy.deepcopy(svd), encoder)
+    times_tilde_cramer = TildeCramerTimesLargestDeviation(copy.deepcopy(svd), encoder)
+
+    log_divided_tilde_cramer = LogTildeCramerDividedLargestDeviation(copy.deepcopy(svd), encoder)
+    log_times_tilde_cramer = LogTildeCramerTimesLargestDeviation(copy.deepcopy(svd), encoder)
+
+    selectors = {
+                 "Largest Deviation": largest_deviation, "Random": random_choice, "All Contexts": baseline,
+                 "Deviation/Cramer": divided_cramer, "Deviation*Cramer": times_cramer,
+                 "Deviation/log(Cramer)": log_divided_cramer, "Deviation*log(Cramer)": log_times_cramer,
+                 "Deviation/BiasCramer": divided_tilde_cramer, "Deviation*BiasCramer": times_tilde_cramer,
+                 "Deviation/log(BiasCramer)": log_divided_tilde_cramer, "Deviation*log(BiasCramer)": log_times_tilde_cramer,
+                }
 
     tf = TestFramework(dataset, context)
-    tf.test_procedure(n_context_choice, selectors, n_repetitions = n_repetitions, seed = seed, results_file="results-cramer-tilde.json")
+    tf.test_procedure(n_context_choice, selectors, n_repetitions=n_repetitions, seed=seed,
+                      results_file="results-final-test.json")

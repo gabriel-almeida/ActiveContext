@@ -102,6 +102,7 @@ class LargestDeviationContextSelection(AbstractContextSelection):
 
 
 class CramerLargestDeviation(LargestDeviationContextSelection):
+    # Dev / V
     def __init__(self, train_method, encoder):
         LargestDeviationContextSelection.__init__(self, train_method, encoder)
 
@@ -122,7 +123,7 @@ class CramerLargestDeviation(LargestDeviationContextSelection):
         self.cramer_matrix = cramer
 
     def calc_score(self, context, cramer_sum):
-        return context/cramer_sum
+        return context/(cramer_sum/np.sum(cramer_sum))
 
     def choose_contexts(self, sample):
         n_contextual_conditions = self.encoder.n_contextual_condition
@@ -173,7 +174,18 @@ class CramerLargestDeviation(LargestDeviationContextSelection):
         return context_choice
 
 
-class LogCramerLargestDeviation(CramerLargestDeviation):
+class CramerTimesLargestDeviation(CramerLargestDeviation):
+    # Dev * V
+    def __init__(self, train_method, encoder):
+        CramerLargestDeviation.__init__(self, train_method, encoder)
+
+    def calc_score(self, context, cramer_sum):
+        return context*(cramer_sum/np.sum(cramer_sum))
+
+
+# LOG VARIANT
+class LogCramerTimesLargestDeviation(CramerLargestDeviation):
+    # Dev * log(V)
     def __init__(self, train_method, encoder):
         CramerLargestDeviation.__init__(self, train_method, encoder)
 
@@ -181,17 +193,51 @@ class LogCramerLargestDeviation(CramerLargestDeviation):
         return context*np.log(cramer_sum/np.sum(cramer_sum))
 
 
-class TildeCramerLargestDeviation(CramerLargestDeviation):
+class LogCramerDividedLargestDeviation(CramerLargestDeviation):
+    # Dev / log(V)
+    def __init__(self, train_method, encoder):
+        CramerLargestDeviation.__init__(self, train_method, encoder)
+
+    def calc_score(self, context, cramer_sum):
+        return context/np.log(cramer_sum/np.sum(cramer_sum))
+
+
+# TILDE CRAMER VARIANTS
+class TildeCramerDividedLargestDeviation(CramerLargestDeviation):
+    # Dev / Ṽ
     def __init__(self, train_method, encoder):
         CramerLargestDeviation.__init__(self, train_method, encoder)
 
     def cramer_function(self, context1, context2):
         return CramersV.cramersV_tilde(context1, context2)
 
+    def calc_score(self, context, cramer_sum):
+        return context/(cramer_sum/np.sum(cramer_sum))
 
-class LogTildeCramerLargestDeviation(TildeCramerLargestDeviation):
+
+class TildeCramerTimesLargestDeviation(TildeCramerDividedLargestDeviation):
+    # Dev * Ṽ
     def __init__(self, train_method, encoder):
-        TildeCramerLargestDeviation.__init__(self, train_method, encoder)
+        TildeCramerDividedLargestDeviation.__init__(self, train_method, encoder)
+
+    def calc_score(self, context, cramer_sum):
+        return context*(cramer_sum/np.sum(cramer_sum))
+
+
+# LOG TILDE CRAMER VARIANTS
+class LogTildeCramerTimesLargestDeviation(TildeCramerDividedLargestDeviation):
+    # Dev * log(Ṽ)
+    def __init__(self, train_method, encoder):
+        TildeCramerDividedLargestDeviation.__init__(self, train_method, encoder)
 
     def calc_score(self, context, cramer_sum):
         return context*np.log(cramer_sum/np.sum(cramer_sum))
+
+
+class LogTildeCramerDividedLargestDeviation(TildeCramerDividedLargestDeviation):
+    # Dev / log(Ṽ)
+    def __init__(self, train_method, encoder):
+        TildeCramerDividedLargestDeviation.__init__(self, train_method, encoder)
+
+    def calc_score(self, context, cramer_sum):
+        return context/np.log(cramer_sum/np.sum(cramer_sum))
