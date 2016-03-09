@@ -108,13 +108,13 @@ if __name__ == "__main__":
     import pandas as pd
     import time
     milis = int(round(time.time()))
-    seed = milis#1457032230
+    seed = 1457360694  # milis  # 1457032230
     print('seed=', seed)
 
     file = "MRMR_data.csv"
 
     m = pd.read_csv(file)
-    n_context_choice = [1, 2, 3, 4, 5, 6, 7]
+    n_context_choice = [7, 8, 9, 10, 11, 12]
     n_repetitions = 50
 
     dataset = m.values[:, 0:3]
@@ -152,4 +152,4 @@ if __name__ == "__main__":
 
     tf = TestFramework(dataset, context)
     tf.test_procedure(n_context_choice, selectors, n_repetitions=n_repetitions, seed=seed,
-                      results_file="results-final-test.json")
+                      results_file="results-second-round-1457360694.json")

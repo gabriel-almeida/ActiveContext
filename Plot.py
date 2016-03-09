@@ -4,12 +4,13 @@ import matplotlib.patches as mpatches
 from scipy.stats import ttest_ind
 
 
-def plot(results, base_algorithm='Cramer Deviation', ttest_p=0.05):
-    possible_contexts = list(results.keys())
+def plot(results, base_algorithm='Deviation*Cramer', ttest_p=0.05):
+    possible_contexts = [int(i) for i in results.keys()]
     possible_contexts.sort()
     n_possible_contexts = len(possible_contexts)
 
-    algo_names = list(results[possible_contexts[0]].keys())
+    algo_names = list(results[str(possible_contexts[0])].keys())
+    algo_names = [i for i in algo_names if 'Bias' not in i]
     algo_names.sort()
     n_algorithms = len(algo_names)
 
@@ -18,7 +19,8 @@ def plot(results, base_algorithm='Cramer Deviation', ttest_p=0.05):
     y_min = np.min(avg) - std  # calculate the min average
     x_individual_step = 1
     x_group_step = 2
-    color_sequence = 'krbcymw'
+    color_sequence = ['#a6cee3', '#1f78b4', '#b2df8a', '#33a02c', '#fb9a99', '#e31a1c', '#fdbf6f', '#ff7f00', '#cab2d6',
+                        '#6a3d9a', '#ffff99']
 
     y_axis = []
     x_axis = []
@@ -29,7 +31,7 @@ def plot(results, base_algorithm='Cramer Deviation', ttest_p=0.05):
     centered_x_label = [(x_individual_step*n_algorithms - 1)/2.0 + (i-1)*(x_group_step + x_individual_step*n_algorithms) for i in range(1,n_possible_contexts+1)]  # i have no idea what im doing
 
     for n_context in possible_contexts:
-        results_by_algorithm = results[n_context]
+        results_by_algorithm = results[str(n_context)]
         for algorithm in algo_names:
             current_y = np.average(results_by_algorithm[algorithm]) - y_min
             y_axis += [current_y]
@@ -61,5 +63,5 @@ def plot(results, base_algorithm='Cramer Deviation', ttest_p=0.05):
 
 if __name__ == "__main__":
     import json
-    results = json.loads(open('results-cramer-tilde.json').readline())
+    results = json.loads(open('results-second-round-1457360694.json').readline())
     plot(results)
