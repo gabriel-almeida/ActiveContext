@@ -63,5 +63,7 @@ def plot(results, base_algorithm='Deviation*Cramer', ttest_p=0.05):
 
 if __name__ == "__main__":
     import json
-    results = json.loads(open('results-second-round-1457360694.json').readline())
+
+    results = json.loads(open('results-11-03-1457360694.json').readline())
+
     plot(results)

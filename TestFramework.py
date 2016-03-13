@@ -35,7 +35,6 @@ class TestFramework():
         selector_name = selector_item[0]
 
         selector.obtain_initial_train(self.dataset[self.ids_train, :], self.context[self.ids_train, :], self.n_context_choice)
-        #print('initial train', selector_name, selector.train_method.complete_hash())
 
         for candidate in self.ids_candidate:
             chosen_contexts = selector.choose_contexts(self.dataset[candidate, :])
@@ -114,7 +113,7 @@ if __name__ == "__main__":
     file = "MRMR_data.csv"
 
     m = pd.read_csv(file)
-    n_context_choice = [7, 8, 9, 10, 11, 12]
+    n_context_choice = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     n_repetitions = 50
 
     dataset = m.values[:, 0:3]
@@ -152,4 +151,4 @@ if __name__ == "__main__":
 
     tf = TestFramework(dataset, context)
     tf.test_procedure(n_context_choice, selectors, n_repetitions=n_repetitions, seed=seed,
-                      results_file="results-second-round-1457360694.json")
+                      results_file="results-11-03.json")
